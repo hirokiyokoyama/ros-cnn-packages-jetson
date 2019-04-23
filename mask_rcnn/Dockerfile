@@ -1,5 +1,5 @@
-FROM hirokiyokoyama/catkin_ws
-LABEL maintainer "hirokiyokoyama <hiroki.yokoyama@okadanet.org>"
+FROM ros-cnn-packages-jetson-common
+LABEL maintainer "hirokiyokoyama <h-yokoyama@craft-server.co.jp>"
 
 # setup mask_rcnn_ros
 RUN git clone https://github.com/hirokiyokoyama/mask_rcnn_ros.git

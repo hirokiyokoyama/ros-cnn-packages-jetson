@@ -1,16 +1,26 @@
-FROM hirokiyokoyama/catkin_ws
-LABEL maintainer "hirokiyokoyama <hiroki.yokoyama@okadanet.org>"
+FROM ros-cnn-packages-jetson-common
+LABEL maintainer "hirokiyokoyama <h-yokoyama@craft-server.co.jp>"
 
-# setup yolo_ros
+# setup openpose_ros
 RUN git clone https://github.com/hirokiyokoyama/openpose_ros.git
 RUN . /catkin_ws/devel/setup.sh && apt-get update && rosdep update \
     && rosdep install -y openpose_ros \
     && rm -rf /var/lib/apt/lists/*
+# needs python3 packages to use tensorflow with JetPack 4.2
+RUN apt-get update && apt-get install -y \
+    gfortran liblapack-dev \
+    && rm -rf /var/lib/apt/lists/*
+RUN pip3 install scipy
 
 # download data
 WORKDIR /catkin_ws/src/openpose_ros/data
 RUN gdrive download 1JSMwXyygLuARtJfsAue_BBs7k-AfuB15
 RUN tar -zxvf openpose_ros_data.tar.gz && rm -f openpose_ros_data.tar.gz
 
+# update source codes (in case the dependency changes, above must be performed)
+RUN cd .. && git pull && git checkout c140587
+
 RUN . /catkin_ws/devel/setup.sh && cd /catkin_ws && catkin_make
+CMD ["rosrun", "openpose_ros", "openpose.py", \
+     "image:=/camera/color/image_rect_color"]
 
