@@ -15,7 +15,8 @@ RUN tar -zxvf yolo_ros_data.tar.gz && rm -f yolo_ros_data.tar.gz
 # to update source files
 RUN cd /catkin_ws/src/yolo_ros && git pull && git checkout ebd649e
 
-RUN . /catkin_ws/devel/setup.sh && cd /catkin_ws && catkin_make
+RUN . /opt/ros/melodic/setup.sh && . /catkin_ws/devel/setup.sh \
+    && cd /catkin_ws && catkin_make
 CMD ["rosrun", "yolo_ros", "yolo.py", \
      "--ckpt", "/catkin_ws/src/yolo_ros/data/yolo9000.ckpt", \
      "--names", "/catkin_ws/src/yolo_ros/data/9k.names", \

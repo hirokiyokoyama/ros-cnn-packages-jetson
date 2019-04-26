@@ -14,12 +14,8 @@ ADD ./tiny-yolo-voc.tar.gz .
 # to update source files
 RUN cd /catkin_ws/src/yolo_ros && git pull && git checkout ebd649e
 
-RUN apt-get update && apt-get install -y \
-    ros-melodic-tf2-geometry-msgs \
-    ros-melodic-image-geometry \
-    && rm -rf /var/lib/apt/lists/*
-
-RUN . /catkin_ws/devel/setup.sh && cd /catkin_ws && catkin_make
+RUN . /opt/ros/melodic/setup.sh && . /catkin_ws/devel/setup.sh \
+    && cd /catkin_ws && catkin_make
 CMD ["rosrun", "yolo_ros", "yolo.py", \
      "--ckpt", "/catkin_ws/src/yolo_ros/data/tiny-yolo-voc.ckpt", \
      "--names", "/catkin_ws/src/yolo_ros/data/voc.names", \

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-docker build -t ros-cnn-packages-jetson-yolo-person-tracker .
+docker build --no-cache -t ros-cnn-packages-jetson-yolo-person-tracker .
 
 shopt -s expand_aliases
 alias ros-container="nvidia-docker run \
