@@ -11,6 +11,9 @@ RUN . /catkin_ws/devel/setup.sh && apt-get update && rosdep update \
 WORKDIR /catkin_ws/src/yolo_ros/data
 ADD ./tiny-yolo-voc.tar.gz .
 
+RUN apt-get update && apt-get install -y ros-melodic-image-geometry \
+    && rm -rf /var/lib/apt/lists/*
+
 # to update source files
 RUN cd /catkin_ws/src/yolo_ros && git pull && git checkout ebd649e
 

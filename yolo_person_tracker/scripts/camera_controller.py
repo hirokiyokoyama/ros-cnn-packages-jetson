@@ -2,10 +2,10 @@ import rospy
 import numpy as np
 from geometry_msgs.msg import PointStamped
 from sensor_msgs.msg import CameraInfo
-#import tf,
+import tf
 import tf2_ros
 import tf2_geometry_msgs
-from std_msgs.msg import Float32
+from std_msgs.msg import Float64
 import image_geometry
 
 TILT_MIN = -0.3
@@ -23,11 +23,11 @@ class CameraController:
 
         self._camera_model = image_geometry.PinholeCameraModel()
         camera_info = rospy.wait_for_message('/camera/color/camera_info', CameraInfo)
-        self._camera_model.fromCameraInfo(msg)
+        self._camera_model.fromCameraInfo(camera_info)
         self._pan_pub = rospy.Publisher(
-            '/pan_controller/command', Float32, queue_size=1)
+            '/pan_controller/command', Float64, queue_size=1)
         self._tilt_pub = rospy.Publisher(
-            '/tilt_controller/command', Float32, queue_size=1)
+            '/tilt_controller/command', Float64, queue_size=1)
 
     def look_at(self, xyz,
                 source_frame='map',
@@ -45,7 +45,7 @@ class CameraController:
         pan = np.arctan2(p.y, p.x)
         tilt = np.arctan2(p.z-.1, p.x)
         rospy.loginfo('pan={}, tilt={}'.format(pan, tilt))
-        self.move(pan=pan, tilt=tilt, wait=wait, timeout=timeout)
+        self.move(pan=pan, tilt=tilt)
 
     def to_pixel(self, xyz, source_frame='map'):
         if self._camera_model.projectionMatrix() is None:
@@ -74,8 +74,7 @@ class CameraController:
                                               rospy.Duration(1.))
         q = tr.transform.rotation
         v = tr.transform.translation
-        #rot = tf.transformations.quaternion_matrix((q.x, q.y, q.z, q.w))
-        rot = np.zeros([4,4])
+        rot = tf.transformations.quaternion_matrix((q.x, q.y, q.z, q.w))
         xyz = self._camera_model.projectPixelTo3dRay(uv)
         n = np.dot(rot[:3,:3], xyz)
         return (v.x, v.y, v.z), (n[0], n[1], n[2])
@@ -88,11 +87,11 @@ class CameraController:
             
         if tilt is not None:
             tilt = min(TILT_MAX, max(TILT_MIN, tilt))
-            self._tilt_pub.publish(Float32(tilt))
+            self._tilt_pub.publish(Float64(tilt))
 
         if pan is not None:
             pan = pan % (np.pi*2)
             if pan > np.pi:
                 pan -= np.pi*2
             pan = min(PAN_MAX, max(PAN_MIN, pan))
-            self._pan_pub.publish(Float32(pan))
+            self._pan_pub.publish(Float64(pan))
