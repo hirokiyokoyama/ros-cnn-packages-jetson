@@ -15,8 +15,6 @@ from dynamic_reconfigure.server import Server
 
 from openpose_ros.msg import Person, PersonArray, KeyPoint
 from openpose_ros.srv import DetectKeyPoints, DetectKeyPointsResponse, DetectPeople, DetectPeopleResponse
-from openpose_ros.msg import SparseTensor
-from openpose_ros.srv import Compute, ComputeResponse
 from openpose_ros.cfg import KeyPointDetectorConfig
 from std_srvs.srv import Empty, EmptyResponse
 from nets import non_maximum_suppression, connect_parts, pose_net_coco, hand_net, face_net
@@ -66,6 +64,7 @@ class KeyPointDetector:
         self.heat_map = heat_map
         self.ph_threshold = tf.placeholder(tf.float32)
         self.keypoints = non_maximum_suppression(heat_map[:,:,:,:-1], threshold=self.ph_threshold)
+
         saver = tf.train.Saver()
     config = tf.ConfigProto()
     config.gpu_options.allow_growth = True
@@ -84,24 +83,43 @@ class KeyPointDetector:
                        affinity_threshold=0.2,
                        line_division=15):
     image = image/255.
+    scale_x = 8.
+    scale_y = 8.
     orig_shape = image.shape
     if self.input_shape is not None:
+      #scale_x *= image.shape[1]/self.input_shape[1]
+      #scale_y *= image.shape[0]/self.input_shape[0]
       image = cv2.resize(image, self.input_shape[::-1])
     image_batch = np.expand_dims(image, 0)
 
     predictions = [None, None, []]
-    if not self.sess:
-      return None
-    fetch = [self.heat_map, self.affinity, self.keypoints]
-    rospy.loginfo('Start processing.')
-    predictions = self.sess.run(fetch, {self.ph_x: image_batch,
-                                        self.ph_threshold: key_point_threshold})
-    rospy.loginfo('Done.')
-    heat_map, affinity, keypoints = predictions
+    if self.sess:
+      fetch = [self.heat_map, self.affinity, self.keypoints]
+      rospy.loginfo('Start processing.')
+      predictions = self.sess.run(fetch, {self.ph_x: image_batch, self.ph_threshold: key_point_threshold})
+      #print('type(predictions):{}'.format(type(predictions)))
+      rospy.loginfo('Done.')
+    heat_map, affinity, keypoints = predictions[:3]
     scale_x = orig_shape[1]/float(heat_map.shape[2])
     scale_y = orig_shape[0]/float(heat_map.shape[1])
+    #print('type(heat_map:{}, affinity:{}, keypoints:{})'.format(type(heat_map), type(affinity), type(keypoints)))
+    #print('heat_map:: shape:{}, dtype:{})'.format(heat_map.shape, heat_map.dtype))
+    #print('affinity:: shape:{}, dtype:{})'.format(affinity.shape, affinity.dtype))
+    #print('keypoints:: shape:{}, dtype:{})'.format(keypoints.shape, keypoints.dtype))
+    #markers = {}
     inlier_lists = []
     for _,y,x,c in keypoints:
+      # if c not in markers:
+      #   _, thresh = cv2.threshold(heat_map[0,:,:,c],
+      #                 key_point_threshold, 255, 0)
+      #   _, m = cv2.connectedComponents(np.uint8(thresh))
+      #   markers[c] = m
+      # else:
+      #   m = markers[c]
+      # ys, xs = np.where(m==m[y,x])
+      # xs = xs*scale_x + scale_x/2
+      # ys = ys*scale_y + scale_y/2
+      # inlier_lists.append(np.vstack([xs,ys]).T)
       x = x*scale_x + scale_x/2
       y = y*scale_y + scale_y/2
       inlier_lists.append((x,y))
@@ -109,11 +127,13 @@ class KeyPointDetector:
     if affinity is not None:
       persons = connect_parts(affinity[0], keypoints[:,1:], self.limbs,
                               line_division=line_division, threshold=affinity_threshold)
-      persons = [{self.part_names[k]:inlier_lists[v] \
-                  for k,v in person.items()} for person in persons]
+      # persons = [{self.part_names[k]:inlier_lists[v]\
+      #       for k,v in person.items()} for person in persons]
+      persons = [{self.part_names[k]:inlier_lists[v]\
+            for k,v in person.items()} for person in persons]
     else:
-      persons = [{self.part_names[c]:inliers \
-                  for (_,_,_,c), inliers in zip(keypoints, inlier_lists)}]
+      persons = [{self.part_names[c]:inliers\
+            for (_,_,_,c), inliers in zip(keypoints, inlier_lists)}]
     return persons
 
 def callback(data):
@@ -161,112 +181,6 @@ def detect_hand(req):
 
 def detect_face(req):
   return detect_keypoints(req, face_detector)
-
-def encode_sparse_tensor(tensor, threshold=0.1, signed=True):
-  msg = SparseTensor()
-  msg.width = tensor.shape[1]
-  msg.height = tensor.shape[0]
-  msg.channels = tensor.shape[2]
-  if signed:
-    inds = np.where(np.abs(tensor) > threshold)
-  else:
-    inds = np.where(tensor > threshold)
-  msg.x_indices = inds[1].tolist()
-  msg.y_indices = inds[0].tolist()
-  msg.channel_indices = inds[2].tolist()
-  val = tensor[inds]
-  min_val = val.min()
-  max_val = val.max()
-  msg.min_value = min_val
-  msg.max_value = max_val
-  msg.quantized_values = np.uint8((val-min_val)/(max_val-min_val) * 255).tolist()
-  return msg
-
-def decode_sparse_tensor(msg):
-  tensor = np.zeros(
-    shape=[msg.height, msg.width, msg.channels],
-    dtype=np.float32)
-  #if isinstance(msg.quantized_values, str):
-  print(type(msg.quantized_values))
-  val = np.fromstring(msg.quantized_values, dtype=np.uint8)
-  #else:
-  #  val = np.uint8(msg.quantized_values)
-  val = np.float32(val)/255. * (msg.max_value - msg.min_value) + msg.min_value
-  tensor[(np.fromstring(msg.y_indices, dtype=np.uint8),
-          np.fromstring(msg.x_indices, dtype=np.uint8),
-          np.fromstring(msg.channel_indices, dtype=np.uint8))] = val
-  return tensor
-
-def compute(req):
-  # determine tensor to feed
-  if req.input == 'image':
-    input_stage = 0
-    cv_image = bridge.imgmsg_to_cv2(req.image, 'rgb8')
-    cv_image = cv_image/255.
-    
-    if pose_detector.input_shape is not None:
-      cv_image = cv2.resize(cv_image, pose_detector.input_shape[::-1])
-    image_batch = np.expand_dims(cv_image, 0)
-    feed_dict = {pose_detector.ph_x: image_batch}
-  else:
-    if not req.input.startswith('stage'):
-      raise ValueError('Argument "input" must be "image" or starts with "stage".')
-    if req.input[5:] not in ['1', '2', '3', '4', '5', '6']:
-      raise ValueError('Argument "input" specifies illegal stage.')
-    input_stage = int(req.input[5:])
-    feed_dict = {
-      pose_detector.end_points[req.input+'_L1']: [decode_sparse_tensor(req.affinity_field)],
-      pose_detector.end_points[req.input+'_L2']: [decode_sparse_tensor(req.confidence_map)],
-      pose_detector.end_points['stage0']: [decode_sparse_tensor(req.feature_map)]
-    }
-  feed_dict[pose_detector.ph_threshold] = pose_params['key_point_threshold']
-  
-  # determine tensor to fetch
-  if req.output == 'people':
-    output_stage = 6
-    fetch_list = [pose_detector.heat_map,
-                  pose_detector.affinity,
-                  pose_detector.keypoints]
-    rospy.loginfo('Start processing 2.')
-    heat_map, affinity, keypoints = pose_detector.sess.run(fetch_list, feed_dict)
-    rospy.loginfo('Done.')
-    # TODO: Scale is not always 8. It varies according to the preprocessing.
-    scale_x = 8.
-    scale_y = 8.
-    inlier_lists = []
-    for _,y,x,c in keypoints:
-      x = x*scale_x + scale_x/2
-      y = y*scale_y + scale_y/2
-      inlier_lists.append((x,y))
-      
-    persons = connect_parts(affinity[0], keypoints[:,1:], pose_detector.limbs,
-                            line_division = pose_params['line_division'],
-                            threshold = pose_params['affinity_threshold'])
-    persons = [{pose_detector.part_names[k]:inlier_lists[v] \
-                for k,v in person.items()} for person in persons]
-    people = [Person(body_parts=[KeyPoint(name=k, x=x, y=y) \
-                                 for k,(x,y) in p.items()]) \
-              for p in persons]
-    return ComputeResponse(people=people)
-  else:
-    if not req.output.startswith('stage'):
-      raise ValueError('Argument "output" must be "people" or starts with "stage".')
-    if req.output[5:] not in ['1', '2', '3', '4', '5', '6']:
-      raise ValueError('Argument "output" specifies illegal stage.')
-    output_stage = int(req.output[5:])
-    if output_stage < input_stage:
-      raise ValueError('Output stage must be greater than input stage.')
-    fetch_list = [
-      pose_detector.end_points[req.output+'_L1'],
-      pose_detector.end_points[req.output+'_L2'],
-      pose_detector.end_points['stage0']
-    ]
-    rospy.loginfo('Start processing 1.')
-    affinity, heat_map, feat_map = pose_detector.sess.run(fetch_list, feed_dict)
-    rospy.loginfo('Done.')
-    return ComputeResponse(feature_map=encode_sparse_tensor(feat_map[0]),
-                           affinity_field=encode_sparse_tensor(affinity[0]),
-                           confidence_map=encode_sparse_tensor(heat_map[0]))
 
 def reconf_callback(config, level):
   for key in ['key_point_threshold', 'affinity_threshold', 'line_division']:
@@ -334,7 +248,6 @@ if __name__ == '__main__':
   rospy.Service('enable_hand_detector', Empty, enable_hand_detector)
   rospy.Service('disable_people_detector', Empty, disable_people_detector)
   rospy.Service('disable_hand_detector', Empty, disable_hand_detector)
-  rospy.Service('compute_openpose', Compute, compute)
 
   srv = Server(KeyPointDetectorConfig, reconf_callback)
   rospy.spin()

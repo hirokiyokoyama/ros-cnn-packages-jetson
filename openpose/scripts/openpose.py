@@ -171,30 +171,23 @@ def encode_sparse_tensor(tensor, threshold=0.1, signed=True):
     inds = np.where(np.abs(tensor) > threshold)
   else:
     inds = np.where(tensor > threshold)
-  msg.x_indices = inds[1].tolist()
-  msg.y_indices = inds[0].tolist()
-  msg.channel_indices = inds[2].tolist()
+  msg.x_indices = inds[1]
+  msg.y_indices = inds[0]
+  msg.channel_indices = inds[2]
   val = tensor[inds]
   min_val = val.min()
   max_val = val.max()
   msg.min_value = min_val
   msg.max_value = max_val
-  msg.quantized_values = np.uint8((val-min_val)/(max_val-min_val) * 255).tolist()
+  msg.quantized_values = np.uint8((val-min_val)/(max_val-min_val) * 255)
   return msg
 
 def decode_sparse_tensor(msg):
   tensor = np.zeros(
     shape=[msg.height, msg.width, msg.channels],
     dtype=np.float32)
-  #if isinstance(msg.quantized_values, str):
-  print(type(msg.quantized_values))
-  val = np.fromstring(msg.quantized_values, dtype=np.uint8)
-  #else:
-  #  val = np.uint8(msg.quantized_values)
-  val = np.float32(val)/255. * (msg.max_value - msg.min_value) + msg.min_value
-  tensor[(np.fromstring(msg.y_indices, dtype=np.uint8),
-          np.fromstring(msg.x_indices, dtype=np.uint8),
-          np.fromstring(msg.channel_indices, dtype=np.uint8))] = val
+  val = msg.quantized_values/255. * (msg.max_value - msg.min_value) + msg.min_value
+  tensor[(msg.y_indices, msg.x_indices, msg.channel_indices)] = val
   return tensor
 
 def compute(req):
@@ -227,7 +220,7 @@ def compute(req):
     fetch_list = [pose_detector.heat_map,
                   pose_detector.affinity,
                   pose_detector.keypoints]
-    rospy.loginfo('Start processing 2.')
+    rospy.loginfo('Start processing.')
     heat_map, affinity, keypoints = pose_detector.sess.run(fetch_list, feed_dict)
     rospy.loginfo('Done.')
     # TODO: Scale is not always 8. It varies according to the preprocessing.
@@ -244,10 +237,11 @@ def compute(req):
                             threshold = pose_params['affinity_threshold'])
     persons = [{pose_detector.part_names[k]:inlier_lists[v] \
                 for k,v in person.items()} for person in persons]
-    people = [Person(body_parts=[KeyPoint(name=k, x=x, y=y) \
-                                 for k,(x,y) in p.items()]) \
-              for p in persons]
-    return ComputeResponse(people=people)
+    msg = PersonArray()
+    msg.people = [Person(body_parts=[KeyPoint(name=k, x=x, y=y) \
+                                     for k,(x,y) in p.items()]) \
+                  for p in persons]
+    return ComputeResponse(people=msg)
   else:
     if not req.output.startswith('stage'):
       raise ValueError('Argument "output" must be "people" or starts with "stage".')
@@ -261,9 +255,7 @@ def compute(req):
       pose_detector.end_points[req.output+'_L2'],
       pose_detector.end_points['stage0']
     ]
-    rospy.loginfo('Start processing 1.')
     affinity, heat_map, feat_map = pose_detector.sess.run(fetch_list, feed_dict)
-    rospy.loginfo('Done.')
     return ComputeResponse(feature_map=encode_sparse_tensor(feat_map[0]),
                            affinity_field=encode_sparse_tensor(affinity[0]),
                            confidence_map=encode_sparse_tensor(heat_map[0]))
