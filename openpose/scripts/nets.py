@@ -84,6 +84,81 @@ def pose_net_coco(x):
 def pose_net_mpi(x):
   return pose_net(x, num_parts=16, num_limbs=14, num_stages=6)
 
+def pose_net_body_25(x, num_parts=26, num_limbs=26):
+  def prelu(x):
+    with tf.variable_scope(''):
+      return tf.keras.layers.PReLU(shared_axes=[1,2])(x)
+    
+  end_points = {}
+
+  with slim.arg_scope([slim.max_pool2d], stride=2, kernel_size=[2,2]):
+    with slim.arg_scope([slim.conv2d], stride=1, padding='SAME',
+              activation_fn=tf.nn.relu, normalizer_fn=None):
+      net = slim.conv2d(x, 64, [3,3], scope='conv1_1')
+      net = slim.conv2d(net, 64, [3,3], scope='conv1_2')
+      net = slim.max_pool2d(net, scope='pool1_stage1')
+      net = slim.conv2d(net, 128, [3,3], scope='conv2_1')
+      net = slim.conv2d(net, 128, [3,3], scope='conv2_2')
+      net = slim.max_pool2d(net, scope='pool2_stage1')
+      net = slim.conv2d(net, 256, [3,3], scope='conv3_1')
+      net = slim.conv2d(net, 256, [3,3], scope='conv3_2')
+      net = slim.conv2d(net, 256, [3,3], scope='conv3_3')
+      net = slim.conv2d(net, 256, [3,3], scope='conv3_4')
+      net = slim.max_pool2d(net, scope='pool3_stage1')
+      net = slim.conv2d(net, 512, [3,3], scope='conv4_1')
+      
+  with slim.arg_scope([slim.conv2d], stride=1, padding='SAME',
+                      activation_fn=prelu, normalizer_fn=None):
+    net = slim.conv2d(net, 512, [3,3], scope='conv4_2')
+    net = slim.conv2d(net, 256, [3,3], scope='conv4_3_CPM')
+    net = slim.conv2d(net, 128, [3,3], scope='conv4_4_CPM')
+    end_points['stage0'] = net
+
+    stage0_l2 = net
+    for i in range(5):
+      _0 = slim.conv2d(stage0_l2, 96, [3,3], scope='Mconv{}_stage0_L2_0'.format(i+1))
+      _1 = slim.conv2d(_0, 96, [3,3], scope='Mconv{}_stage0_L2_1'.format(i+1))
+      _2 = slim.conv2d(_1, 96, [3,3], scope='Mconv{}_stage0_L2_2'.format(i+1))
+      stage0_l2 = tf.concat([_0, _1, _2], 3, name='Mconv{}_stage0_L2_concat'.format(i+1))
+    stage0_l2 = slim.conv2d(stage0_l2, 256, [1,1], scope='Mconv6_stage0_L2')
+    stage0_l2 = slim.conv2d(stage0_l2, num_limbs*2, [1,1], activation_fn=None, scope='Mconv7_stage0_L2')
+    end_points['stage1_L1'] = stage0_l2
+
+    stagej_l2 = stage0_l2
+    for j in range(3):
+      stagej_l2 = tf.concat([net, stagej_l2], 3, name='concat_stage{}_L2'.format(j+1))
+      for i in range(5):
+        _0 = slim.conv2d(stagej_l2, 128, [3,3], scope='Mconv{}_stage{}_L2_0'.format(i+1,j+1))
+        _1 = slim.conv2d(_0, 128, [3,3], scope='Mconv{}_stage{}_L2_1'.format(i+1,j+1))
+        _2 = slim.conv2d(_1, 128, [3,3], scope='Mconv{}_stage{}_L2_2'.format(i+1,j+1))
+        stagej_l2 = tf.concat([_0, _1, _2], 3, name='Mconv{}_stage{}_L2_concat'.format(i+1,j+1))
+      stagej_l2 = slim.conv2d(stagej_l2, 512, [1,1], scope='Mconv6_stage{}_L2'.format(j+1))
+      stagej_l2 = slim.conv2d(stagej_l2, num_limbs*2, [1,1], activation_fn=None, scope='Mconv7_stage{}_L2'.format(j+1))
+      end_points['stage{}_L1'.format(j+2)] = stagej_l2
+
+    stage0_l1 = tf.concat([net, stagej_l2], 3, name='concat_stage0_L1')
+    for i in range(5):
+      _0 = slim.conv2d(stage0_l1, 96, [3,3], scope='Mconv{}_stage0_L1_0'.format(i+1))
+      _1 = slim.conv2d(_0, 96, [3,3], scope='Mconv{}_stage0_L1_1'.format(i+1))
+      _2 = slim.conv2d(_1, 96, [3,3], scope='Mconv{}_stage0_L1_2'.format(i+1))
+      stage0_l1 = tf.concat([_0, _1, _2], 3, name='Mconv{}_stage0_L1_concat'.format(i+1))
+    stage0_l1 = slim.conv2d(stage0_l1, 256, [1,1], scope='Mconv6_stage0_L1')
+    stage0_l1 = slim.conv2d(stage0_l1, num_parts, [1,1], activation_fn=None, scope='Mconv7_stage0_L1')
+    end_points['stage1_L2'] = stage0_l1
+      
+    stagej_l1 = stage0_l1
+    for j in range(1):
+      stagej_l1 = tf.concat([net, stagej_l1, stagej_l2], 3, name='concat_stage{}_L1'.format(j+1))
+      for i in range(5):
+        _0 = slim.conv2d(stagej_l1, 128, [3,3], scope='Mconv{}_stage{}_L1_0'.format(i+1,j+1))
+        _1 = slim.conv2d(_0, 128, [3,3], scope='Mconv{}_stage{}_L1_1'.format(i+1,j+1))
+        _2 = slim.conv2d(_1, 128, [3,3], scope='Mconv{}_stage{}_L1_2'.format(i+1,j+1))
+        stagej_l1 = tf.concat([_0, _1, _2], 3, name='Mconv{}_stage{}_L1_concat'.format(i+1,j+1))
+      stagej_l1 = slim.conv2d(stagej_l1, 512, [1,1], scope='Mconv6_stage{}_L1'.format(j+1))
+      stagej_l1 = slim.conv2d(stagej_l1, num_parts, [1,1], activation_fn=None, scope='Mconv7_stage{}_L1'.format(j+1))
+    end_points['stage{}_L2'.format(j+2)] = stagej_l1
+  return end_points
+
 def base_net(x, num_parts=71, num_stages=6):
   end_points = {}
 
@@ -139,18 +214,27 @@ def convert_npy_to_ckpt(net_fn, npy_path, ckpt_path):
   graph = tf.Graph()
   with graph.as_default():
     with tf.Session(graph=graph) as sess:
+      npy = np.load(npy_path, encoding='latin1').item()
       x = tf.placeholder(tf.float32, shape=[None,None,None,3])
+      assign_value = tf.placeholder(tf.float32)
       net_fn(x)
-
-      npy = np.load(npy_path).item()
-      for op_name, op_data in npy.iteritems():
-        with tf.variable_scope(op_name, reuse=True):
-          for param_name, param_data in op_data.iteritems():
-            try:
-              var = tf.get_variable(param_name)
-              sess.run(var.assign(param_data))
-            except ValueError:
-              rospy.logerr('{}/{} is not in the network.'.format(op_name, param_name))
+      variables = {v.name: v for v in tf.global_variables()}
+      
+      for op_name, op_data in npy.items():
+        for param_name, param_data in op_data.items():
+          var_name = op_name+'/'+param_name+':0'
+          try:
+            if 'prelu' in op_name:
+              var_names = variables.keys()
+              var_names = filter(
+                lambda x: x.startswith(op_name.replace('prelu','conv')) \
+                       and x.endswith('alpha:0'), var_names)
+              var_name = list(var_names)[0]
+            var = variables[var_name]
+            sess.run(var.assign(assign_value), {assign_value: param_data})
+          except:
+            raise
+            #rospy.logerr('{} is not in the network.'.format(var_name))
       tf.train.Saver(sharded=False).save(sess, ckpt_path, write_meta_graph=False)
 
 def non_maximum_suppression(heat_map, threshold=0.5):
@@ -211,3 +295,6 @@ def connect_parts(affinity, keypoints, limbs, line_division=10, threshold=0.2):
         persons.append(merged)
   #return [{k:keypoints[v,:2] for k,v in p.iteritems()} for p in persons]
   return persons
+
+import sys
+convert_npy_to_ckpt(pose_net_body_25, sys.argv[1], sys.argv[2])

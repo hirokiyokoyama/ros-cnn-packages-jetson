@@ -1,0 +1,5 @@
+#!/usr/bin/env python
+from .net import pose_net_body_25, convert_npy_to_ckpt
+import sys
+
+convert_npy_to_ckpt(pose_net_boty_25, sys.argv[1], sys.argv[2])
