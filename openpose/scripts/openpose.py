@@ -256,7 +256,7 @@ def compute(req):
       pose_detector.end_points['stage0']
     ]
     affinity, heat_map, feat_map = pose_detector.sess.run(fetch_list, feed_dict)
-    return ComputeResponse(feature_map=encode_sparse_tensor(feat_map[0]),
+    return ComputeResponse(feature_map=encode_sparse_tensor(feat_map[0], threshold=0.2),
                            affinity_field=encode_sparse_tensor(affinity[0]),
                            confidence_map=encode_sparse_tensor(heat_map[0]))
 

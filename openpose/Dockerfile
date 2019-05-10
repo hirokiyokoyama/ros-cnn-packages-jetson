@@ -19,7 +19,7 @@ RUN gdrive download 1JSMwXyygLuARtJfsAue_BBs7k-AfuB15
 RUN tar -zxvf openpose_ros_data.tar.gz && rm -f openpose_ros_data.tar.gz
 
 # update source codes (in case the dependency changes, above must be performed)
-RUN cd .. && git pull && git checkout d98a57e
+RUN cd .. && git pull && git checkout 7e7a0c1
 
 #RUN . /catkin_ws/devel/setup.sh && cd /catkin_ws && catkin_make
 RUN . /opt/ros/melodic/setup.sh && cd /catkin_ws && catkin_make

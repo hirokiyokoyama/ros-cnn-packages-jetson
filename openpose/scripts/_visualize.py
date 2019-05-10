@@ -43,7 +43,7 @@ def callback(image_msg):
     size1 = sizeof_sparse_tensor(hidden_msg.feature_map)
     size2 = sizeof_sparse_tensor(hidden_msg.affinity_field)
     size3 = sizeof_sparse_tensor(hidden_msg.confidence_map)
-    print("Feature map: {} bytes\n Affinity field: {} bytes\nConfidence map: {} bytes\nTotal: {} bytes" \
+    print("Feature map: {} bytes\nAffinity field: {} bytes\nConfidence map: {} bytes\nTotal: {} bytes" \
           .format(size1, size2, size3, size1+size2+size3))
     print("Image to stage{0}: {1} sec\nStage{0} to detection: {2} sec\nTotal: {3} sec" \
           .format(stage, (t1-t0).to_sec(), (t2-t1).to_sec(), (t2-t0).to_sec()))
