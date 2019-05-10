@@ -9,5 +9,5 @@ alias ros-container="nvidia-docker run \
 ros-container -it --name openpose-openpose --rm \
               -v `pwd`/scripts:/catkin_ws/src/openpose_ros/_scripts \
 	      ros-cnn-packages-jetson-openpose \
-	      rosrun openpose_ros openpose.py _stage:=6 \
+	      rosrun openpose_ros openpose.py _stage:=6 __name:=openpose_`hostname`\
 	      compute_openpose:=compute_openpose_`hostname`
