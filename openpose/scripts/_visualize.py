@@ -14,20 +14,40 @@ from openpose import encode_sparse_tensor
 bridge = CvBridge()
 image = None
 
+def sizeof_sparse_tensor(msg):
+    size = 11 #width to max_value
+    size += len(msg.x_indices)
+    size += len(msg.y_indices)
+    size += len(msg.channel_indices)
+    size += len(msg.quantized_values)
+    return size
+
 def callback(image_msg):
     try:
         cv_image = bridge.imgmsg_to_cv2(image_msg, 'bgr8')
     except CvBridgeError as e:
         rospy.logerr(e)
 
-    hidden_msg = compute(input='image',
-                         output='stage1',
-                         image=image_msg)
-    people_msg = compute(input='stage1',
-                         output='people',
-                         feature_map=hidden_msg.feature_map,
-                         affinity_field=hidden_msg.affinity_field,
-                         confidence_map=hidden_msg.confidence_map)
+    t0 = rospy.Time.now()
+    hidden_msg = compute_openpose_tx2(
+        input='image', output='stage%d' % stage,
+        image=image_msg)
+    t1 = rospy.Time.now()
+    people_msg = compute_openpose_xavier(
+        input='stage%d' % stage, output='people',
+        feature_map=hidden_msg.feature_map,
+        affinity_field=hidden_msg.affinity_field,
+        confidence_map=hidden_msg.confidence_map)
+    t2 = rospy.Time.now()
+
+    size1 = sizeof_sparse_tensor(hidden_msg.feature_map)
+    size2 = sizeof_sparse_tensor(hidden_msg.affinity_field)
+    size3 = sizeof_sparse_tensor(hidden_msg.confidence_map)
+    print("Feature map: {} bytes\n Affinity field: {} bytes\nConfidence map: {} bytes\nTotal: {} bytes" \
+          .format(size1, size2, size3, size1+size2+size3))
+    print("Image to stage{0}: {1} sec\nStage{0} to detection: {2} sec\nTotal: {3} sec" \
+          .format(stage, (t1-t0).to_sec(), (t2-t1).to_sec(), (t2-t0).to_sec()))
+    
     for person in people_msg.people:
         for part in person.body_parts:
             cv2.circle(cv_image, (int(part.x), int(part.y)), 3, (0, 0, 255), 1)
@@ -41,8 +61,12 @@ def callback(image_msg):
 
 if __name__ == '__main__':
     rospy.init_node('visualize_openpose')
-    compute = rospy.ServiceProxy('compute_openpose', Compute)
-    compute.wait_for_service()
+    stage = rospy.get_param('~stage', 1)
+    
+    compute_openpose_tx2 = rospy.ServiceProxy('compute_openpose_tx2-1', Compute)
+    compute_openpose_tx2.wait_for_service()
+    compute_openpose_xavier = rospy.ServiceProxy('compute_openpose_xavier-1', Compute)
+    compute_openpose_xavier.wait_for_service()
     image_sub = rospy.Subscriber('image', Image, callback)
     while not rospy.is_shutdown():
         if image is not None:
