@@ -9,6 +9,7 @@ import threading
 import rospkg
 import os
 from cv_bridge import CvBridge, CvBridgeError
+from distutils.util import strtobool
 
 from sensor_msgs.msg import Image
 from dynamic_reconfigure.server import Server
@@ -19,11 +20,12 @@ from openpose_ros.msg import SparseTensor
 from openpose_ros.srv import Compute, ComputeResponse
 from openpose_ros.cfg import KeyPointDetectorConfig
 from std_srvs.srv import Empty, EmptyResponse
-from nets import non_maximum_suppression, connect_parts, pose_net_coco, hand_net, face_net
-from labels import POSE_COCO_L1, POSE_COCO_L2, HAND
+from nets import non_maximum_suppression, connect_parts, pose_net_body_25, hand_net, face_net
+from labels import POSE_BODY_25_L1, POSE_BODY_25_L2, HAND
 FACE = ['face_%02d' % (i+1) for i in range(71)]
 
-stage = 6
+l2_stage = 1
+l1_stage = 4
 
 class KeyPointDetector:
   def __init__(self, net_fn, ckpt_file, part_names,
@@ -39,10 +41,10 @@ class KeyPointDetector:
     else:
       self.limbs = None
 
-  def initialize(self, stage=6):
-    stage_n_L1 = 'stage%d_L1' % stage
-    stage_n_L2 = 'stage%d_L2' % stage
-    stage_n = 'stage%d' % stage
+  def initialize(self, l2_stage=1, l1_stage=4):
+    stage_n_L1 = 'stage%d_L1' % l1_stage
+    stage_n_L2 = 'stage%d_L2' % l2_stage
+    stage_n = 'stage%d' % l2_stage
     
     if self.sess:
       self.sess.close()
@@ -175,22 +177,19 @@ def encode_sparse_tensor(tensor, threshold=0.1, signed=True):
   msg.y_indices = inds[0].tolist()
   msg.channel_indices = inds[2].tolist()
   val = tensor[inds]
-  min_val = val.min()
-  max_val = val.max()
-  msg.min_value = min_val
-  msg.max_value = max_val
-  msg.quantized_values = np.uint8((val-min_val)/(max_val-min_val) * 255).tolist()
+  if len(val) > 0:
+    min_val = val.min()
+    max_val = val.max()
+    msg.min_value = min_val
+    msg.max_value = max_val
+    msg.quantized_values = np.uint8((val-min_val)/(max_val-min_val) * 255).tolist()
   return msg
 
 def decode_sparse_tensor(msg):
   tensor = np.zeros(
     shape=[msg.height, msg.width, msg.channels],
     dtype=np.float32)
-  #if isinstance(msg.quantized_values, str):
-  print(type(msg.quantized_values))
   val = np.fromstring(msg.quantized_values, dtype=np.uint8)
-  #else:
-  #  val = np.uint8(msg.quantized_values)
   val = np.float32(val)/255. * (msg.max_value - msg.min_value) + msg.min_value
   tensor[(np.fromstring(msg.y_indices, dtype=np.uint8),
           np.fromstring(msg.x_indices, dtype=np.uint8),
@@ -200,7 +199,8 @@ def decode_sparse_tensor(msg):
 def compute(req):
   # determine tensor to feed
   if req.input == 'image':
-    input_stage = 0
+    input_l2_stage = 0
+    input_l1_stage = 0
     cv_image = bridge.imgmsg_to_cv2(req.image, 'rgb8')
     cv_image = cv_image/255.
     
@@ -213,21 +213,21 @@ def compute(req):
       raise ValueError('Argument "input" must be "image" or starts with "stage".')
     if req.input[5:] not in ['1', '2', '3', '4', '5', '6']:
       raise ValueError('Argument "input" specifies illegal stage.')
-    input_stage = int(req.input[5:])
+    input_l2_stage = 0
+    input_l1_stage = int(req.input[5:])
     feed_dict = {
       pose_detector.end_points[req.input+'_L1']: [decode_sparse_tensor(req.affinity_field)],
-      pose_detector.end_points[req.input+'_L2']: [decode_sparse_tensor(req.confidence_map)],
+      #pose_detector.end_points['stage0_L2']: [decode_sparse_tensor(req.confidence_map)],
       pose_detector.end_points['stage0']: [decode_sparse_tensor(req.feature_map)]
     }
   feed_dict[pose_detector.ph_threshold] = pose_params['key_point_threshold']
   
   # determine tensor to fetch
   if req.output == 'people':
-    output_stage = 6
     fetch_list = [pose_detector.heat_map,
                   pose_detector.affinity,
                   pose_detector.keypoints]
-    rospy.loginfo('Start processing 2.')
+    rospy.loginfo('Start processing.')
     heat_map, affinity, keypoints = pose_detector.sess.run(fetch_list, feed_dict)
     rospy.loginfo('Done.')
     # TODO: Scale is not always 8. It varies according to the preprocessing.
@@ -253,20 +253,16 @@ def compute(req):
       raise ValueError('Argument "output" must be "people" or starts with "stage".')
     if req.output[5:] not in ['1', '2', '3', '4', '5', '6']:
       raise ValueError('Argument "output" specifies illegal stage.')
-    output_stage = int(req.output[5:])
-    if output_stage < input_stage:
-      raise ValueError('Output stage must be greater than input stage.')
     fetch_list = [
       pose_detector.end_points[req.output+'_L1'],
-      pose_detector.end_points[req.output+'_L2'],
+      #pose_detector.end_points[req.output+'_L2'],
       pose_detector.end_points['stage0']
     ]
-    rospy.loginfo('Start processing 1.')
-    affinity, heat_map, feat_map = pose_detector.sess.run(fetch_list, feed_dict)
-    rospy.loginfo('Done.')
-    return ComputeResponse(feature_map=encode_sparse_tensor(feat_map[0]),
-                           affinity_field=encode_sparse_tensor(affinity[0]),
-                           confidence_map=encode_sparse_tensor(heat_map[0]))
+    #affinity, heat_map, feat_map = pose_detector.sess.run(fetch_list, feed_dict)
+    affinity, feat_map = pose_detector.sess.run(fetch_list, feed_dict)
+    return ComputeResponse(feature_map=encode_sparse_tensor(feat_map[0], threshold=0.2),
+                           affinity_field=encode_sparse_tensor(affinity[0]))
+                           #confidence_map=encode_sparse_tensor(heat_map[0]))
 
 def reconf_callback(config, level):
   for key in ['key_point_threshold', 'affinity_threshold', 'line_division']:
@@ -299,31 +295,32 @@ def disable_hand_detector(req):
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser()
-  parser.add_argument('--enable-people', type=bool, default=True)
-  parser.add_argument('--enable-hand', type=bool, default=True)
-  parser.add_argument('--enable-face', type=bool, default=True)
+  parser.add_argument('--enable-people', type=strtobool, default=True)
+  parser.add_argument('--enable-hand', type=strtobool, default=True)
+  parser.add_argument('--enable-face', type=strtobool, default=True)
   args, _ = parser.parse_known_args()
 
   pkg = rospkg.rospack.RosPack().get_path('openpose_ros')
   bridge = CvBridge()
   rospy.init_node('openpose')
-  stage = rospy.get_param('~stage', 6)
+  l1_stage = rospy.get_param('~l1_stage', 4)
+  l2_stage = rospy.get_param('~l2_stage', 1)
 
-  ckpt_file = os.path.join(pkg, 'data', 'pose_coco.ckpt')
-  pose_detector = KeyPointDetector(pose_net_coco, ckpt_file, POSE_COCO_L2, POSE_COCO_L1, input_shape=(480, 640))
+  ckpt_file = os.path.join(pkg, '_data', 'pose_iter_584000.ckpt')
+  pose_detector = KeyPointDetector(pose_net_body_25, ckpt_file, POSE_BODY_25_L2, POSE_BODY_25_L1, input_shape=(480,640))
   if args.enable_people:
-    pose_detector.initialize(stage=stage)
+    pose_detector.initialize(l2_stage=l2_stage, l1_stage=l1_stage)
   pose_params = {}
 
   ckpt_file = os.path.join(pkg, 'data', 'face.ckpt')
   face_detector = KeyPointDetector(face_net, ckpt_file, FACE, input_shape=(480,640))
   if args.enable_face:
-    face_detector.initialize(stage=stage)
+    face_detector.initialize(l2_stage=l2_stage)
 
   ckpt_file = os.path.join(pkg, 'data', 'hand.ckpt')
   hand_detector = KeyPointDetector(hand_net, ckpt_file, HAND, input_shape=(480,640))
   if args.enable_hand:
-    hand_detector.initialize(stage=stage)
+    hand_detector.initialize(l2_stage=l2_stage)
 
   image_sub = rospy.Subscriber('image', Image, callback)
   people_pub = rospy.Publisher('people', PersonArray, queue_size=1)

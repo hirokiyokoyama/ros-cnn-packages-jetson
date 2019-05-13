@@ -45,17 +45,9 @@ def pose_net(x, num_parts=19, num_limbs=19, num_stages=6):
       end_points['stage1_L2'] = part
 
   with slim.arg_scope([slim.conv2d], stride=1, padding='SAME',
-            activation_fn=tf.nn.relu, normalizer_fn=None):
+                      activation_fn=tf.nn.relu, normalizer_fn=None):
     for stage in range(2, num_stages+1):
-      if stage == 3:
-        _limb = tf.where(tf.abs(limb)>0.1, limb, tf.zeros_like(limb))
-        part1 = part[:,:,:,:-1]
-        _part = tf.where(part1>0.1, part1, tf.zeros_like(part1))
-        _part = tf.concat([_part, 1-tf.reduce_sum(_part, 3, keepdims=True)], 3)
-        _net = tf.where(net>0.2, net, tf.zeros_like(net))
-        concat = tf.concat(values=[_limb, _part, _net], axis=3, name='concat_stage{}'.format(stage))
-      else:
-        concat = tf.concat(values=[limb, part, net], axis=3, name='concat_stage{}'.format(stage))
+      concat = tf.concat(values=[limb, part, net], axis=3, name='concat_stage{}'.format(stage))
 
       limb = slim.conv2d(concat, 128, [7,7], scope='Mconv1_stage{}_L1'.format(stage))
       limb = slim.conv2d(limb, 128, [7,7], scope='Mconv2_stage{}_L1'.format(stage))
@@ -296,5 +288,6 @@ def connect_parts(affinity, keypoints, limbs, line_division=10, threshold=0.2):
   #return [{k:keypoints[v,:2] for k,v in p.iteritems()} for p in persons]
   return persons
 
-import sys
-convert_npy_to_ckpt(pose_net_body_25, sys.argv[1], sys.argv[2])
+if __name__=='__main__':
+  import sys
+  convert_npy_to_ckpt(pose_net_body_25, sys.argv[1], sys.argv[2])

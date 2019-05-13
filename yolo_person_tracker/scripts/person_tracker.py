@@ -109,7 +109,7 @@ def callback(image):
         if camera_target is None:
             camera_target = np.array(track[2])
         else:
-            camera_target = camera_target*0.9 + np.array(track[2])*0.1
+            camera_target = camera_target*0.5 + np.array(track[2])*0.5
 
     if camera_target is not None:
         ps = PoseStamped()
