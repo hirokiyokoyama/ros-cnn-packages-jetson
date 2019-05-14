@@ -112,7 +112,7 @@ def image_cb(image_msg):
 def sp_cb(msg1):
     t0 = rospy.Time.now()
     msg2 = compute_openpose_xavier(
-        input_tensors=msg1.output_tensors,
+        input_tensors=msg1.sparse_tensors,
         queries=['stage4_L1', 'stage2_L2'],
         thresholds=[0.1, 0.1])
     t1 = rospy.Time.now()
@@ -121,7 +121,7 @@ def sp_cb(msg1):
     people = extract_people(heat_map, affinity)
     t2 = rospy.Time.now()
     
-    sizes = list(map(sizeof_sparse_tensor, msg1.output_tensors))
+    sizes = list(map(sizeof_sparse_tensor, msg1.sparse_tensors))
     print("Sizes: {} bytes\nTotal: {} bytes".format(sizes, sum(sizes)))
     print("Stage1 to detection: {} sec\nPost processing: {} sec\nTotal: {} sec" \
           .format((t1-t0).to_sec(), (t2-t1).to_sec(), (t2-t0).to_sec()))
@@ -134,12 +134,12 @@ def sp_cb(msg1):
     xavier_image = _xavier_image
     
     #
-    msg1.output_tensors[0].name = 'stage4_L1'
+    msg1.sparse_tensors[0].name = 'stage4_L1'
     msg3 = compute_openpose_xavier(
-        input_tensors=msg1.output_tensors,
+        input_tensors=msg1.sparse_tensors,
         queries=['stage1_L2'],
         thresholds=[0.1, 0.1])
-    affinity = decode_sparse_tensor(msg1.output_tensors[0])
+    affinity = decode_sparse_tensor(msg1.sparse_tensors[0])
     heat_map = decode_sparse_tensor(msg3.output_tensors[0])
     people = extract_people(heat_map, affinity)
     _tx2_image = np.zeros((480,640,3), dtype=np.uint8)

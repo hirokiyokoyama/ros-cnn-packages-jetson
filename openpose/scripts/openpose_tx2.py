@@ -145,9 +145,9 @@ def callback(data):
     outputs = pose_detector.sess.run(fetch_list, feed_dict)
     t1 = rospy.Time.now()
     rospy.loginfo('Image to stage1: {} sec'.format((t1-t0).to_sec()))
-    stage0 = encode_sparse_tensor(outputs[0], threshold=0.1)
+    stage0 = encode_sparse_tensor(outputs[0][0], threshold=0.1)
     stage0.name = 'stage0'
-    stage1_L2 = encode_sparse_tensor(outputs[0], threshold=0.1)
+    stage1_L2 = encode_sparse_tensor(outputs[1][0], threshold=0.1)
     stage1_L2.name = 'stage1_L2'
     msg.sparse_tensors = [stage0, stage1_L2]
     stage1_pub.publish(msg)
