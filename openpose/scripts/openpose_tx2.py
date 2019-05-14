@@ -141,7 +141,10 @@ def callback(data):
     fetch_list = [ pose_detector.end_points['stage0'],
                    pose_detector.end_points['stage1_L2'] ]
     feed_dict = { pose_detector.ph_x: cv_image / 255. }
+    t0 = rospy.Time.now()
     outputs = pose_detector.sess.run(fetch_list, feed_dict)
+    t1 = rospy.Time.now()
+    rospy.loginfo('Image to stage1: {} sec'.format((t1-t0).to_sec()))
     stage0 = encode_sparse_tensors(outputs[0], threshold=0.1)
     stage0.name = 'stage0'
     stage1_L2 = encode_sparse_tensors(outputs[0], threshold=0.1)

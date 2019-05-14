@@ -123,9 +123,8 @@ def sp_cb(msg1):
     
     sizes = list(map(sizeof_sparse_tensor, msg1.output_tensors))
     print("Sizes: {} bytes\nTotal: {} bytes".format(sizes, sum(sizes)))
-    print("Stage{0} to detection: {1} sec\nPost processing: {2} sec\nTotal: {3} sec" \
-          .format(stage, (t1-t0).to_sec(), (t2-t1).to_sec(),
-                  (t2-t0).to_sec()))
+    print("Stage1 to detection: {} sec\nPost processing: {} sec\nTotal: {} sec" \
+          .format((t1-t0).to_sec(), (t2-t1).to_sec(), (t2-t0).to_sec()))
     print("Found {} people.".format(len(people)))
 
     global xavier_image, tx2_image
