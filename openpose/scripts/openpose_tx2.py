@@ -140,7 +140,7 @@ def callback(data):
     msg.header = data.header
     fetch_list = [ pose_detector.end_points['stage0'],
                    pose_detector.end_points['stage1_L2'] ]
-    feed_dict = { pose_detector.ph_x: cv_image / 255. }
+    feed_dict = { pose_detector.ph_x: [cv_image / 255.] }
     t0 = rospy.Time.now()
     outputs = pose_detector.sess.run(fetch_list, feed_dict)
     t1 = rospy.Time.now()
