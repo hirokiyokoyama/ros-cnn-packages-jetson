@@ -45,7 +45,7 @@ def pose_net(x, num_parts=19, num_limbs=19, num_stages=6):
       end_points['stage1_L2'] = part
 
   with slim.arg_scope([slim.conv2d], stride=1, padding='SAME',
-                      activation_fn=tf.nn.relu, normalizer_fn=None):
+            activation_fn=tf.nn.relu, normalizer_fn=None):
     for stage in range(2, num_stages+1):
       concat = tf.concat(values=[limb, part, net], axis=3, name='concat_stage{}'.format(stage))
 
@@ -230,9 +230,25 @@ def convert_npy_to_ckpt(net_fn, npy_path, ckpt_path):
       tf.train.Saver(sharded=False).save(sess, ckpt_path, write_meta_graph=False)
 
 def non_maximum_suppression(heat_map, threshold=0.5):
-  heat_map_max = slim.max_pool2d(heat_map, stride=1, kernel_size=[3,3], padding='SAME')
+  if isinstance(heat_map, np.ndarray):
+    global _max_pool_sess
+    if '_max_pool_sess' not in globals():
+      with tf.Graph().as_default() as graph:
+        ph_x = tf.placeholder(tf.float32, shape=[None]*4, name='x')
+        ph_t = tf.placeholder(tf.float32, shape=[], name='t')
+        y = non_maximum_suppression(ph_x, threshold=ph_t)
+        y = tf.identity(y, name='y')
+        config = tf.ConfigProto()
+        config.gpu_options.allow_growth = True
+      _max_pool_sess = tf.Session(graph=graph, config=config)
+    return _max_pool_sess.run('y:0', {'x:0': heat_map, 't:0': threshold})
+  
+  heat_map_max = slim.max_pool2d(
+    heat_map, stride=1, kernel_size=[3,3], padding='SAME')
   # (num, 4(NHWC))
-  inds = tf.where(tf.logical_and(heat_map > threshold, tf.equal(heat_map_max, heat_map)))
+  inds = tf.where(
+    tf.logical_and(heat_map > threshold,
+                   tf.equal(heat_map_max, heat_map)))
   #return tf.concat(values=[inds[:,0:1], inds[:, 1:3] * 8, inds[:,3:]], axis=1)
   return inds
 
@@ -287,7 +303,3 @@ def connect_parts(affinity, keypoints, limbs, line_division=10, threshold=0.2):
         persons.append(merged)
   #return [{k:keypoints[v,:2] for k,v in p.iteritems()} for p in persons]
   return persons
-
-if __name__=='__main__':
-  import sys
-  convert_npy_to_ckpt(pose_net_body_25, sys.argv[1], sys.argv[2])

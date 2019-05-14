@@ -57,6 +57,7 @@ class KeyPointDetector:
           shape[2] = self.input_shape[1]
         self.ph_x = tf.placeholder(tf.float32, shape=shape)
         self.end_points = self.net_fn(self.ph_x)
+        self.end_points['image'] = self.ph_x
         if stage_n_L1 in self.end_points and stage_n_L2 in self.end_points:
           self.affinity = self.end_points[stage_n_L1]
           heat_map = self.end_points[stage_n_L2]
@@ -173,6 +174,7 @@ def encode_sparse_tensor(tensor, threshold=0.1, signed=True):
     inds = np.where(np.abs(tensor) > threshold)
   else:
     inds = np.where(tensor > threshold)
+  
   msg.x_indices = inds[1].tolist()
   msg.y_indices = inds[0].tolist()
   msg.channel_indices = inds[2].tolist()
@@ -186,83 +188,34 @@ def encode_sparse_tensor(tensor, threshold=0.1, signed=True):
   return msg
 
 def decode_sparse_tensor(msg):
+  val = np.fromstring(msg.quantized_values, dtype=np.uint8)
+  val = np.float32(val)/255. * (msg.max_value - msg.min_value) + msg.min_value
+  if not msg.y_indices:
+    return val.reshape(msg.height, msg.width, msg.channels)
   tensor = np.zeros(
     shape=[msg.height, msg.width, msg.channels],
     dtype=np.float32)
-  val = np.fromstring(msg.quantized_values, dtype=np.uint8)
-  val = np.float32(val)/255. * (msg.max_value - msg.min_value) + msg.min_value
   tensor[(np.fromstring(msg.y_indices, dtype=np.uint8),
           np.fromstring(msg.x_indices, dtype=np.uint8),
           np.fromstring(msg.channel_indices, dtype=np.uint8))] = val
   return tensor
 
 def compute(req):
-  # determine tensor to feed
-  if req.input == 'image':
-    input_l2_stage = 0
-    input_l1_stage = 0
-    cv_image = bridge.imgmsg_to_cv2(req.image, 'rgb8')
-    cv_image = cv_image/255.
-    
-    if pose_detector.input_shape is not None:
-      cv_image = cv2.resize(cv_image, pose_detector.input_shape[::-1])
-    image_batch = np.expand_dims(cv_image, 0)
-    feed_dict = {pose_detector.ph_x: image_batch}
-  else:
-    if not req.input.startswith('stage'):
-      raise ValueError('Argument "input" must be "image" or starts with "stage".')
-    if req.input[5:] not in ['1', '2', '3', '4', '5', '6']:
-      raise ValueError('Argument "input" specifies illegal stage.')
-    input_l2_stage = 0
-    input_l1_stage = int(req.input[5:])
-    feed_dict = {
-      pose_detector.end_points[req.input+'_L1']: [decode_sparse_tensor(req.affinity_field)],
-      #pose_detector.end_points['stage0_L2']: [decode_sparse_tensor(req.confidence_map)],
-      pose_detector.end_points['stage0']: [decode_sparse_tensor(req.feature_map)]
-    }
-  feed_dict[pose_detector.ph_threshold] = pose_params['key_point_threshold']
-  
-  # determine tensor to fetch
-  if req.output == 'people':
-    fetch_list = [pose_detector.heat_map,
-                  pose_detector.affinity,
-                  pose_detector.keypoints]
-    rospy.loginfo('Start processing.')
-    heat_map, affinity, keypoints = pose_detector.sess.run(fetch_list, feed_dict)
-    rospy.loginfo('Done.')
-    # TODO: Scale is not always 8. It varies according to the preprocessing.
-    scale_x = 8.
-    scale_y = 8.
-    inlier_lists = []
-    for _,y,x,c in keypoints:
-      x = x*scale_x + scale_x/2
-      y = y*scale_y + scale_y/2
-      inlier_lists.append((x,y))
-      
-    persons = connect_parts(affinity[0], keypoints[:,1:], pose_detector.limbs,
-                            line_division = pose_params['line_division'],
-                            threshold = pose_params['affinity_threshold'])
-    persons = [{pose_detector.part_names[k]:inlier_lists[v] \
-                for k,v in person.items()} for person in persons]
-    people = [Person(body_parts=[KeyPoint(name=k, x=x, y=y) \
-                                 for k,(x,y) in p.items()]) \
-              for p in persons]
-    return ComputeResponse(people=people)
-  else:
-    if not req.output.startswith('stage'):
-      raise ValueError('Argument "output" must be "people" or starts with "stage".')
-    if req.output[5:] not in ['1', '2', '3', '4', '5', '6']:
-      raise ValueError('Argument "output" specifies illegal stage.')
-    fetch_list = [
-      pose_detector.end_points[req.output+'_L1'],
-      #pose_detector.end_points[req.output+'_L2'],
-      pose_detector.end_points['stage0']
-    ]
-    #affinity, heat_map, feat_map = pose_detector.sess.run(fetch_list, feed_dict)
-    affinity, feat_map = pose_detector.sess.run(fetch_list, feed_dict)
-    return ComputeResponse(feature_map=encode_sparse_tensor(feat_map[0], threshold=0.2),
-                           affinity_field=encode_sparse_tensor(affinity[0]))
-                           #confidence_map=encode_sparse_tensor(heat_map[0]))
+  ep = pose_detector.end_points
+  fetch_list = [ep[x] if x in ep else x for x in req.queries]
+  feed_dict = {
+    ep[x.name] if x.name in ep else x.name: [decode_sparse_tensor(x)] \
+    for x in req.input_tensors }
+  outputs = pose_detector.sess.run(fetch_list, feed_dict)
+  thresholds = req.thresholds
+  if not thresholds:
+    thresholds = [0.1] * len(req.queries)
+  output_tensors = []
+  for o, t, q in zip(outputs, thresholds, req.queries):
+    st = encode_sparse_tensor(o[0], threshold=t)
+    st.name = q
+    output_tensors.append(st)
+  return ComputeResponse(output_tensors=output_tensors)
 
 def reconf_callback(config, level):
   for key in ['key_point_threshold', 'affinity_threshold', 'line_division']:
