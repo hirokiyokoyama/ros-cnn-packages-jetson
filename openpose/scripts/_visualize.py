@@ -2,7 +2,7 @@
 
 import rospy
 from openpose_ros.srv import Compute
-from openpose_ros.msg import SparseTensor, SparseTensorArray
+from openpose_ros.msg import PersonArray, Person, SparseTensor, SparseTensorArray
 import cv2
 from cv_bridge import CvBridge, CvBridgeError
 from sensor_msgs.msg import Image
@@ -46,6 +46,20 @@ def draw_people(image, people):
       if p1 in person and p2 in person:
         cv2.line(image,
                  person[p1], person[p2],
+                 (0, 255, 0), 2)
+        
+def draw_peoplemsg(image, people):
+  for person in people.people:
+    points = {}
+    for part in person.body_parts:
+      k = part.name
+      v = (int(part.x*image.shape[1]), int(part.y*image.shape[0]))
+      points[k] = v
+      cv2.circle(image, v, 3, (0, 0, 255), 1)
+    for p1, p2 in POSE_BODY_25_L1:
+      if p1 in points and p2 in points:
+        cv2.line(image,
+                 points[p1], points[p2],
                  (0, 255, 0), 2)
 
 def image_cb(image_msg):
@@ -133,7 +147,7 @@ def sp_cb(msg1):
     draw_people(_xavier_image, people)
     xavier_image = _xavier_image
     
-    #
+    """
     msg1.sparse_tensors[1].name = 'stage4_L1'
     msg3 = compute_openpose_xavier(
         input_tensors=msg1.sparse_tensors,
@@ -145,6 +159,12 @@ def sp_cb(msg1):
     _tx2_image = np.zeros((480,640,3), dtype=np.uint8)
     draw_people(_tx2_image, people)
     tx2_image = _tx2_image
+    """
+def people_cb(msg):
+    global xavier_image
+    _xavier_image = np.zeros((480,640,3), dtype=np.uint8)
+    draw_peoplemsg(_xavier_image, msg)
+    xavier_image = _xavier_image
 
 if __name__ == '__main__':
     rospy.init_node('visualize_openpose')
@@ -158,7 +178,10 @@ if __name__ == '__main__':
     reconf = ReconfClient('openpose_xavier-1')
     reconf.update_configuration({'affinity_threshold': 0.1})
 
-    st_sub = rospy.Subscriber('openpose_stage1', SparseTensorArray, sp_cb)
+    #st_sub = rospy.Subscriber('openpose_stage1', SparseTensorArray,
+    #                          sp_cb, queue_size=1)
+    people_sub = rospy.Subscriber('people', PersonArray,
+                                  people_cb, queue_size=1)
     while not rospy.is_shutdown():
         if xavier_image is not None:
             cv2.imshow('Xavier', xavier_image)
