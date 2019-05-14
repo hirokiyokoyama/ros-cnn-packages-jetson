@@ -139,7 +139,7 @@ def callback(data):
     msg = SparseTensorArray()
     msg.header = data.header
     fetch_list = [ pose_detector.end_points['stage0'],
-                   pose_detector.end_points['stage1_L2'] ]
+                   pose_detector.end_points['stage1_L1'] ]
     feed_dict = { pose_detector.ph_x: [cv_image / 255.] }
     t0 = rospy.Time.now()
     outputs = pose_detector.sess.run(fetch_list, feed_dict)
@@ -147,8 +147,8 @@ def callback(data):
     rospy.loginfo('Image to stage1: {} sec'.format((t1-t0).to_sec()))
     stage0 = encode_sparse_tensor(outputs[0][0], threshold=0.1)
     stage0.name = 'stage0'
-    stage1_L2 = encode_sparse_tensor(outputs[1][0], threshold=0.1)
-    stage1_L2.name = 'stage1_L2'
+    stage1_L1 = encode_sparse_tensor(outputs[1][0], threshold=0.1)
+    stage1_L1.name = 'stage1_L1'
     msg.sparse_tensors = [stage0, stage1_L2]
     stage1_pub.publish(msg)
 

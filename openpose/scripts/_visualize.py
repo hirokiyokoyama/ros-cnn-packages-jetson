@@ -134,7 +134,7 @@ def sp_cb(msg1):
     xavier_image = _xavier_image
     
     #
-    msg1.sparse_tensors[0].name = 'stage4_L1'
+    msg1.sparse_tensors[1].name = 'stage4_L1'
     msg3 = compute_openpose_xavier(
         input_tensors=msg1.sparse_tensors,
         queries=['stage1_L2'],
