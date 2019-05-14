@@ -120,7 +120,7 @@ class KeyPointDetector:
     return persons
 
 def callback(data):
-  if people_pub.get_num_connections() > 0 or level1_pub.get_num_connections() > 0:
+  if people_pub.get_num_connections() > 0 or stage1_pub.get_num_connections() > 0:
     try:
       cv_image = bridge.imgmsg_to_cv2(data, 'rgb8')
     except CvBridgeError as e:
@@ -135,19 +135,19 @@ def callback(data):
                   for p in persons]
     people_pub.publish(msg)
 
-  if level1_pub.get_num_connections() > 0:
+  if stage1_pub.get_num_connections() > 0:
     msg = SparseTensorArray()
     msg.header = data.header
-    fetch_list = [ pose_detector.end_points['level0'],
-                   pose_detector.end_points['level1_L2'] ]
+    fetch_list = [ pose_detector.end_points['stage0'],
+                   pose_detector.end_points['stage1_L2'] ]
     feed_dict = { pose_detector.ph_x: cv_image / 255. }
     outputs = pose_detector.sess.run(fetch_list, feed_dict)
-    level0 = encode_sparse_tensors(outputs[0], threshold=0.1)
-    level0.name = 'level0'
-    level1_L2 = encode_sparse_tensors(outputs[0], threshold=0.1)
-    level1_L2.name = 'level1_L2'
-    msg.sparse_tensors = [level0, level1_L2]
-    level1_pub.publish(msg)
+    stage0 = encode_sparse_tensors(outputs[0], threshold=0.1)
+    stage0.name = 'stage0'
+    stage1_L2 = encode_sparse_tensors(outputs[0], threshold=0.1)
+    stage1_L2.name = 'stage1_L2'
+    msg.sparse_tensors = [stage0, stage1_L2]
+    stage1_pub.publish(msg)
 
 def detect_people(req):
   try:
@@ -292,7 +292,7 @@ if __name__ == '__main__':
 
   image_sub = rospy.Subscriber('image', Image, callback)
   people_pub = rospy.Publisher('people', PersonArray, queue_size=1)
-  level1_pub = rospy.Publisher('openpose_level1', SparseTensorArray, queue_size=1)
+  stage1_pub = rospy.Publisher('openpose_stage1', SparseTensorArray, queue_size=1)
   rospy.Service('detect_people', DetectPeople, detect_people)
   rospy.Service('detect_hand', DetectKeyPoints, detect_hand)
   rospy.Service('detect_face', DetectKeyPoints, detect_face)

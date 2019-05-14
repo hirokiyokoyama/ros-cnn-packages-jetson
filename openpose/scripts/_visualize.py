@@ -159,7 +159,7 @@ if __name__ == '__main__':
     reconf = ReconfClient('openpose_xavier-1')
     reconf.update_configuration({'affinity_threshold': 0.1})
 
-    st_sub = rospy.Subscriber('openpose_level1', SparseTensorArray, sp_cb)
+    st_sub = rospy.Subscriber('openpose_stage1', SparseTensorArray, sp_cb)
     while not rospy.is_shutdown():
         if xavier_image is not None:
             cv2.imshow('Xavier', xavier_image)
