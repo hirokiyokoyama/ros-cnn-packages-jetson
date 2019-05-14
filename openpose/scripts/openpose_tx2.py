@@ -120,22 +120,15 @@ class KeyPointDetector:
     return persons
 
 def callback(data):
-  if people_pub.get_num_connections() > 0 or stage1_pub.get_num_connections() > 0:
+  if stage1_pub.get_num_connections() > 0:
     try:
       cv_image = bridge.imgmsg_to_cv2(data, 'rgb8')
+      if pose_detector.input_shape is not None:
+        cv_image = cv2.resize(cv_image, tuple(pose_detector.input_shape[::-1]))
     except CvBridgeError as e:
       rospy.logerr(e)
       return
   
-  if people_pub.get_num_connections() > 0:
-    persons = pose_detector.detect_keypoints(cv_image, **pose_params)
-    msg = PersonArray(header=data.header)
-    msg.people = [Person(body_parts=[KeyPoint(name=k, x=x, y=y) \
-                                     for k,(x,y) in p.items()]) \
-                  for p in persons]
-    people_pub.publish(msg)
-
-  if stage1_pub.get_num_connections() > 0:
     msg = SparseTensorArray()
     msg.header = data.header
     fetch_list = [ pose_detector.end_points['stage0'],
@@ -278,7 +271,7 @@ if __name__ == '__main__':
   l2_stage = rospy.get_param('~l2_stage', 1)
 
   ckpt_file = os.path.join(pkg, '_data', 'pose_iter_584000.ckpt')
-  pose_detector = KeyPointDetector(pose_net_body_25, ckpt_file, POSE_BODY_25_L2, POSE_BODY_25_L1, input_shape=(480,640))
+  pose_detector = KeyPointDetector(pose_net_body_25, ckpt_file, POSE_BODY_25_L2, POSE_BODY_25_L1, input_shape=(300,400))
   if args.enable_people:
     pose_detector.initialize(l2_stage=l2_stage, l1_stage=l1_stage)
   pose_params = {}
@@ -293,8 +286,7 @@ if __name__ == '__main__':
   if args.enable_hand:
     hand_detector.initialize(l2_stage=l2_stage)
 
-  image_sub = rospy.Subscriber('image', Image, callback)
-  people_pub = rospy.Publisher('people', PersonArray, queue_size=1)
+  image_sub = rospy.Subscriber('image', Image, callback, queue_size=1)
   stage1_pub = rospy.Publisher('openpose_stage1', SparseTensorArray, queue_size=1)
   rospy.Service('detect_people', DetectPeople, detect_people)
   rospy.Service('detect_hand', DetectKeyPoints, detect_hand)
