@@ -190,7 +190,7 @@ def encode_sparse_tensor(tensor, threshold=0.1, signed=True):
 def decode_sparse_tensor(msg):
   val = np.fromstring(msg.quantized_values, dtype=np.uint8)
   val = np.float32(val)/255. * (msg.max_value - msg.min_value) + msg.min_value
-  if not msg.y_indices:
+  if not msg.y_indices and msg.height*msg.width*msg.channels > 0:
     return val.reshape(msg.height, msg.width, msg.channels)
   tensor = np.zeros(
     shape=[msg.height, msg.width, msg.channels],

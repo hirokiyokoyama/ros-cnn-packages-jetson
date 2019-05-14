@@ -40,8 +40,8 @@ def callback(image_msg):
     image_sp.quantized_values = cv_image[:,:,::-1].reshape(-1).tolist()
 
     t0 = rospy.Time.now()
-    #msg1 = compute_openpose_tx2(
-    msg1 = compute_openpose_xavier(
+    msg1 = compute_openpose_tx2(
+    #msg1 = compute_openpose_xavier(
         input_tensors=[image_sp],
         queries=['stage1_L1', 'stage0'],
         thresholds=[0.1, 0.1])
