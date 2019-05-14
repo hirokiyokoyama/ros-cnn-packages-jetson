@@ -149,7 +149,7 @@ def callback(data):
     stage0.name = 'stage0'
     stage1_L1 = encode_sparse_tensor(outputs[1][0], threshold=0.1)
     stage1_L1.name = 'stage1_L1'
-    msg.sparse_tensors = [stage0, stage1_L2]
+    msg.sparse_tensors = [stage0, stage1_L1]
     stage1_pub.publish(msg)
 
 def detect_people(req):
