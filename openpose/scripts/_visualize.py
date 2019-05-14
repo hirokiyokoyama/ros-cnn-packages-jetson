@@ -2,7 +2,7 @@
 
 import rospy
 from openpose_ros.srv import Compute
-from openpose_ros.msg import SparseTensor
+from openpose_ros.msg import SparseTensor, SparseTensorArray
 import cv2
 from cv_bridge import CvBridge, CvBridgeError
 from sensor_msgs.msg import Image
@@ -48,7 +48,7 @@ def draw_people(image, people):
                  person[p1], person[p2],
                  (0, 255, 0), 2)
 
-def callback(image_msg):
+def image_cb(image_msg):
     try:
         cv_image = bridge.imgmsg_to_cv2(image_msg, 'bgr8')
     except CvBridgeError as e:
@@ -109,6 +109,44 @@ def callback(image_msg):
     draw_people(_tx2_image, people)
     tx2_image = _tx2_image
 
+def sp_cb(msg1):
+    t0 = rospy.Time.now()
+    msg2 = compute_openpose_xavier(
+        input_tensors=msg1.output_tensors,
+        queries=['stage4_L1', 'stage2_L2'],
+        thresholds=[0.1, 0.1])
+    t1 = rospy.Time.now()
+    affinity = decode_sparse_tensor(msg2.output_tensors[0])
+    heat_map = decode_sparse_tensor(msg2.output_tensors[1])
+    people = extract_people(heat_map, affinity)
+    t2 = rospy.Time.now()
+    
+    sizes = list(map(sizeof_sparse_tensor, msg1.output_tensors))
+    print("Sizes: {} bytes\nTotal: {} bytes".format(sizes, sum(sizes)))
+    print("Stage{0} to detection: {1} sec\nPost processing: {2} sec\nTotal: {3} sec" \
+          .format(stage, (t1-t0).to_sec(), (t2-t1).to_sec(),
+                  (t2-t0).to_sec()))
+    print("Found {} people.".format(len(people)))
+
+    global xavier_image, tx2_image
+
+    _xavier_image = np.zeros((480,640,3), dtype=np.uint8)
+    draw_people(_xavier_image, people)
+    xavier_image = _xavier_image
+    
+    #
+    msg1.output_tensors[0].name = 'stage4_L1'
+    msg3 = compute_openpose_xavier(
+        input_tensors=msg1.output_tensors,
+        queries=['stage1_L2'],
+        thresholds=[0.1, 0.1])
+    affinity = decode_sparse_tensor(msg1.output_tensors[0])
+    heat_map = decode_sparse_tensor(msg3.output_tensors[0])
+    people = extract_people(heat_map, affinity)
+    _tx2_image = np.zeros((480,640,3), dtype=np.uint8)
+    draw_people(_tx2_image, people)
+    tx2_image = _tx2_image
+
 if __name__ == '__main__':
     rospy.init_node('visualize_openpose')
     stage = rospy.get_param('~stage', 1)
@@ -121,7 +159,7 @@ if __name__ == '__main__':
     reconf = ReconfClient('openpose_xavier-1')
     reconf.update_configuration({'affinity_threshold': 0.1})
 
-    image_sub = rospy.Subscriber('image', Image, callback)
+    st_sub = rospy.Subscriber('openpose_level1', SparseTensorArray, sp_cb)
     while not rospy.is_shutdown():
         if xavier_image is not None:
             cv2.imshow('Xavier', xavier_image)

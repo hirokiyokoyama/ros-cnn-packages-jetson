@@ -11,4 +11,5 @@ ros-container -it --name openpose-openpose --rm \
               -v `pwd`/data:/catkin_ws/src/openpose_ros/_data \
 	      ros-cnn-packages-jetson-openpose \
               rosrun openpose_ros openpose_tx2.py --enable-face=false --enable-hand=false __name:=openpose_`hostname`\
-	      compute_openpose:=compute_openpose_`hostname`
+	      compute_openpose:=compute_openpose_`hostname` \
+	      image:=/camera/color/image_rect_color
