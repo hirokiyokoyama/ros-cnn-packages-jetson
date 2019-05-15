@@ -36,13 +36,13 @@ class KeyPointDetector:
     graph = tf.Graph()
     with graph.as_default():
       self._ph_x = tf.placeholder(tf.float32, shape=[None,None,None,3])
-      self._end_points['image'] = self._ph_x
       
       if input_shape is None:
         x = self._ph_x
       else:
         x = tf.image.resize_images(self._ph_x, input_shape)
       self._end_points = net_fn(x)
+      self._end_points['image'] = self._ph_x
       
       if parts_tensor in self._end_points:
         self._heat_map = self._end_points[parts_tensor]
@@ -162,7 +162,7 @@ def callback(data):
                            line_division=pose_params['line_division'],
                            threshold=pose_params['affinity_threshold'])
     h, w = affinity.shape[:2]
-    people = [ { pose_detector._part_names[k]: ((keypoints[v][2]+0.5)/w, (keypoints[v][1]+0.5)/h) } \
+    people = [ { pose_detector._part_names[k]: ((keypoints[v][2]+0.5)/w, (keypoints[v][1]+0.5)/h) \
                for k,v in person.items()} for person in people ]
     
     msg = PersonArray()
@@ -247,7 +247,7 @@ if __name__ == '__main__':
                            input_shape=(300,400))
   pose_params = {}
 
-  image_sub = rospy.Subscriber('image', Image, callback, queue_size=1, buf_size=1048576)
+  image_sub = rospy.Subscriber('image', Image, callback, queue_size=1, buff_size=1048576)
   mid_pub = rospy.Publisher('openpose_mid', SparseTensorArray, queue_size=1)
   people_pub = rospy.Publisher('people_tx2', PersonArray, queue_size=1)
 

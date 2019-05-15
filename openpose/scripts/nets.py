@@ -116,28 +116,30 @@ def pose_net_body_25(x, num_parts=26, num_limbs=26, part_stage=1, limb_stage=3):
       net = slim.max_pool2d(net, scope='pool3_stage1')
       net = slim.conv2d(net, 512, [3,3], scope='conv4_1')
       
-      net = slim.conv2d(net, 512, [3,3], scope='conv4_2')
-      net = slim.conv2d(net, 256, [3,3], scope='conv4_3_CPM')
-      net = slim.conv2d(net, 128, [3,3], scope='conv4_4_CPM')
+  with slim.arg_scope([slim.conv2d], stride=1, padding='SAME',
+                      activation_fn=prelu, normalizer_fn=None):
+    net = slim.conv2d(net, 512, [3,3], scope='conv4_2')
+    net = slim.conv2d(net, 256, [3,3], scope='conv4_3_CPM')
+    net = slim.conv2d(net, 128, [3,3], scope='conv4_4_CPM')
   stage0 = net
   end_points['stage0'] = stage0
 
-  net = pose_body_25_stage(net, num_limbs*2, c1=96, c2=256, name='stage0_L2')
+  net = pose_net_body_25_stage(net, num_limbs*2, c1=96, c2=256, name='stage0_L2')
   end_points['stage1_L1'] = net
 
   for j in range(limb_stage):
     net = tf.concat([stage0, net], 3, name='concat_stage{}_L2'.format(j+1))
-    net = pose_body_25_stage(net, num_limbs*2, c1=128, c2=512, name='stage{}_L2'.format(j+1))
+    net = pose_net_body_25_stage(net, num_limbs*2, c1=128, c2=512, name='stage{}_L2'.format(j+1))
     end_points['stage{}_L1'.format(j+2)] = net
   final_l2 = net
 
   net = tf.concat([stage0, final_l2], 3, name='concat_stage0_L1')
-  net = pose_body_25_stage(net, num_parts, c1=96, c2=256, name='stage0_L1')
+  net = pose_net_body_25_stage(net, num_parts, c1=96, c2=256, name='stage0_L1')
   end_points['stage1_L2'] = net
   
   for j in range(part_stage):
     net = tf.concat([stage0, net, final_l2], 3, name='concat_stage{}_L1'.format(j+1))
-    net = pose_body_25_stage(net, num_parts, c1=128, c2=512, name='stage{}_L1'.format(j+1))
+    net = pose_net_body_25_stage(net, num_parts, c1=128, c2=512, name='stage{}_L1'.format(j+1))
     end_points['stage{}_L2'.format(j+2)] = net
   return end_points
 
