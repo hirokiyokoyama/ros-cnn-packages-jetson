@@ -247,7 +247,8 @@ if __name__ == '__main__':
                            input_shape=(300,400))
   pose_params = {}
 
-  image_sub = rospy.Subscriber('image', Image, callback, queue_size=1, buff_size=1048576)
+  image_sub = rospy.Subscriber('image', Image, callback,
+                               queue_size=1, buff_size=1048576*8)
   mid_pub = rospy.Publisher('openpose_mid', SparseTensorArray, queue_size=1)
   people_pub = rospy.Publisher('people_tx2', PersonArray, queue_size=1)
 

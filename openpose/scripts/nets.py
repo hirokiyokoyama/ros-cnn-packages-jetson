@@ -133,6 +133,17 @@ def pose_net_body_25(x, num_parts=26, num_limbs=26, part_stage=1, limb_stage=3):
     end_points['stage{}_L1'.format(j+2)] = net
   final_l2 = net
 
+  # Apply dummy PReLU layers to have the same scope as the ckpt file.
+  dummy128 = tf.placeholder(tf.float32, shape=[None,None,None,128])
+  dummy512 = tf.placeholder(tf.float32, shape=[None,None,None,128])
+  for j in range(limb_stage,3):
+    for k in range(5):
+      for l in range(3):
+        with tf.variable_scope('Mconv{}_stage{}_L2_{}'.format(k+1,j+1,l)):
+          prelu(dummy128)
+    with tf.variable_scope('Mconv6_stage{}_L2'.format(j+1)):
+      prelu(dummy512)
+
   net = tf.concat([stage0, final_l2], 3, name='concat_stage0_L1')
   net = pose_net_body_25_stage(net, num_parts, c1=96, c2=256, name='stage0_L1')
   end_points['stage1_L2'] = net

@@ -149,7 +149,7 @@ def callback(data):
     t0 = rospy.Time.now()
     outputs = pose_detector.sess.run(fetch_list, feed_dict)
     t1 = rospy.Time.now()
-    rospy.loginfo('Stage1 to stage4: {} sec'.format((t1-t0).to_sec()))
+    rospy.loginfo('Mid-stage to stage4: {} sec'.format((t1-t0).to_sec()))
     affinity, heat_map = outputs
     people = extract_people(heat_map[0], affinity[0])
     t2 = rospy.Time.now()
@@ -238,7 +238,7 @@ def reconf_callback(config, level):
 if __name__ == '__main__':
   pkg = rospkg.rospack.RosPack().get_path('openpose_ros')
   bridge = CvBridge()
-  rospy.init_node('openpose')
+  rospy.init_node('openpose_xavier')
   l1_stage = rospy.get_param('~l1_stage', 4)
   l2_stage = rospy.get_param('~l2_stage', 1)
 
@@ -247,8 +247,8 @@ if __name__ == '__main__':
   pose_detector.initialize(l2_stage=l2_stage, l1_stage=l1_stage)
   pose_params = {}
 
-  st_sub = rospy.Subscriber('openpose_stage1', SparseTensorArray,
-                            callback, queue_size=1)
+  st_sub = rospy.Subscriber('openpose_mid', SparseTensorArray, callback,
+                            queue_size=1, buff_size=1048576*4, tcp_nodelay=True)
   people_pub = rospy.Publisher('people', PersonArray, queue_size=1)
   rospy.Service('compute_openpose', Compute, compute)
 
