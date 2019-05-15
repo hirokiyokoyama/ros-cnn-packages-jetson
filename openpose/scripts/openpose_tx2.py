@@ -169,7 +169,7 @@ def callback(data):
     msg.header = data.header
     msg.people = [Person(body_parts=[KeyPoint(name=k, x=x, y=y) \
                                      for k,(x,y) in p.items()]) \
-                  for p in persons]
+                  for p in people]
     people_pub.publish(msg)
 
 def encode_sparse_tensor(tensor, threshold=0.1, signed=True):

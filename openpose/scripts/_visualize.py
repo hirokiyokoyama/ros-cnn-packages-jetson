@@ -160,11 +160,17 @@ def sp_cb(msg1):
     draw_people(_tx2_image, people)
     tx2_image = _tx2_image
     """
+    
+def img_cb(image_msg):
+  global xavier_image
+  try:
+    xavier_image = bridge.imgmsg_to_cv2(image_msg, 'bgr8')
+  except CvBridgeError as e:
+    rospy.logerr(e)
+        
 def people_cb(msg):
-    global xavier_image
-    _xavier_image = np.zeros((480,640,3), dtype=np.uint8)
-    draw_peoplemsg(_xavier_image, msg)
-    xavier_image = _xavier_image
+    global xavier_people
+    xavier_people = msg
 
 if __name__ == '__main__':
     rospy.init_node('visualize_openpose')
@@ -178,11 +184,14 @@ if __name__ == '__main__':
 
     #st_sub = rospy.Subscriber('openpose_stage1', SparseTensorArray,
     #                          sp_cb, queue_size=1)
+    img_sub = rospy.Subscriber('image', PersonArray, img_cb,
+                               queue_size=1, buff_size=1048576*8, tcp_nodelay=True)
     people_sub = rospy.Subscriber('people', PersonArray, people_cb,
                                   queue_size=1, buff_size=1048576*8, tcp_nodelay=True)
     while not rospy.is_shutdown():
-        if xavier_image is not None:
-            cv2.imshow('Xavier', xavier_image)
-        if tx2_image is not None:
-            cv2.imshow('TX2', tx2_image)
-        cv2.waitKey(1)
+      if xavier_image is not None:
+        draw_peoplemsg(xavier_image, msg)
+        cv2.imshow('Xavier', xavier_image)
+      if tx2_image is not None:
+        cv2.imshow('TX2', tx2_image)
+      cv2.waitKey(1)
