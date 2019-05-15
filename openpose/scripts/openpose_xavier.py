@@ -249,7 +249,7 @@ if __name__ == '__main__':
 
   st_sub = rospy.Subscriber('openpose_mid', SparseTensorArray, callback,
                             queue_size=1, buff_size=1048576*4, tcp_nodelay=True)
-  people_pub = rospy.Publisher('people', PersonArray, queue_size=1)
+  people_pub = rospy.Publisher('people_xavier', PersonArray, queue_size=1)
   rospy.Service('compute_openpose', Compute, compute)
 
   srv = Server(KeyPointDetectorConfig, reconf_callback)

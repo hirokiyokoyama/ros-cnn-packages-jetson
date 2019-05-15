@@ -162,7 +162,7 @@ def callback(data):
                            line_division=pose_params['line_division'],
                            threshold=pose_params['affinity_threshold'])
     h, w = affinity.shape[:2]
-    people = [ { pose_detector._part_names[k]: ((keypoints[v][2]+0.5)/w, (keypoints[v][1]+0.5)/h) \
+    people = [ { pose_detector._part_names[k]: ((keypoints[v][1]+0.5)/w, (keypoints[v][0]+0.5)/h) \
                for k,v in person.items()} for person in people ]
     
     msg = PersonArray()

@@ -18,6 +18,9 @@ WORKDIR /catkin_ws/src/openpose_ros/data
 RUN gdrive download 1JSMwXyygLuARtJfsAue_BBs7k-AfuB15
 RUN tar -zxvf openpose_ros_data.tar.gz && rm -f openpose_ros_data.tar.gz
 
+RUN apt-get update && apt-get install -y ros-melodic-image-geometry \
+    && rm -rf /var/lib/apt/lists/*
+
 # update source codes (in case the dependency changes, above must be performed)
 RUN cd .. && git pull && git checkout 23d0efb 
 
