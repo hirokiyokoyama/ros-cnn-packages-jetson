@@ -76,11 +76,28 @@ def pose_net_coco(x):
 def pose_net_mpi(x):
   return pose_net(x, num_parts=16, num_limbs=14, num_stages=6)
 
-def pose_net_body_25(x, num_parts=26, num_limbs=26):
-  def prelu(x):
-    with tf.variable_scope(''):
-      return tf.keras.layers.PReLU(shared_axes=[1,2])(x)
-    
+def prelu(x):
+  with tf.variable_scope(''):
+    return tf.keras.layers.PReLU(shared_axes=[1,2])(x)
+  
+def pose_net_body_25_stage(x, c, c1=96, c2=256, name=''):
+  with slim.arg_scope([slim.conv2d], stride=1, padding='SAME',
+                      activation_fn=prelu, normalizer_fn=None):
+    for i in range(5):
+      _0 = slim.conv2d(x, c1, [3,3], scope='Mconv{}_{}_0'.format(i+1, name))
+      _1 = slim.conv2d(_0, c1, [3,3], scope='Mconv{}_{}_1'.format(i+1, name))
+      _2 = slim.conv2d(_1, c1, [3,3], scope='Mconv{}_{}_2'.format(i+1, name))
+      x = tf.concat([_0, _1, _2], 3, name='Mconv{}_{}_concat'.format(i+1, name))
+    x = slim.conv2d(x, c2, [1,1], scope='Mconv6_{}'.format(name))
+    x = slim.conv2d(x, c, [1,1], activation_fn=None, scope='Mconv7_{}'.format(name))
+  return x
+
+# Note that, in scope, 'L1'(limb) and 'L2'(part) are swapped and stage number starts with 0.
+def pose_net_body_25(x, num_parts=26, num_limbs=26, part_stage=1, limb_stage=3):
+  if part_stage < 0:
+    raise ValueError('part_stage must be non-negative.')
+  if limb_stage < 0:
+    raise ValueError('limb_stage must be non-negative.')
   end_points = {}
 
   with slim.arg_scope([slim.max_pool2d], stride=2, kernel_size=[2,2]):
@@ -99,56 +116,29 @@ def pose_net_body_25(x, num_parts=26, num_limbs=26):
       net = slim.max_pool2d(net, scope='pool3_stage1')
       net = slim.conv2d(net, 512, [3,3], scope='conv4_1')
       
-  with slim.arg_scope([slim.conv2d], stride=1, padding='SAME',
-                      activation_fn=prelu, normalizer_fn=None):
-    net = slim.conv2d(net, 512, [3,3], scope='conv4_2')
-    net = slim.conv2d(net, 256, [3,3], scope='conv4_3_CPM')
-    net = slim.conv2d(net, 128, [3,3], scope='conv4_4_CPM')
-    end_points['stage0'] = net
+      net = slim.conv2d(net, 512, [3,3], scope='conv4_2')
+      net = slim.conv2d(net, 256, [3,3], scope='conv4_3_CPM')
+      net = slim.conv2d(net, 128, [3,3], scope='conv4_4_CPM')
+  stage0 = net
+  end_points['stage0'] = stage0
 
-    stage0_l2 = net
-    for i in range(5):
-      _0 = slim.conv2d(stage0_l2, 96, [3,3], scope='Mconv{}_stage0_L2_0'.format(i+1))
-      _1 = slim.conv2d(_0, 96, [3,3], scope='Mconv{}_stage0_L2_1'.format(i+1))
-      _2 = slim.conv2d(_1, 96, [3,3], scope='Mconv{}_stage0_L2_2'.format(i+1))
-      stage0_l2 = tf.concat([_0, _1, _2], 3, name='Mconv{}_stage0_L2_concat'.format(i+1))
-    stage0_l2 = slim.conv2d(stage0_l2, 256, [1,1], scope='Mconv6_stage0_L2')
-    stage0_l2 = slim.conv2d(stage0_l2, num_limbs*2, [1,1], activation_fn=None, scope='Mconv7_stage0_L2')
-    end_points['stage1_L1'] = stage0_l2
+  net = pose_body_25_stage(net, num_limbs*2, c1=96, c2=256, name='stage0_L2')
+  end_points['stage1_L1'] = net
 
-    stagej_l2 = stage0_l2
-    for j in range(3):
-      stagej_l2 = tf.concat([net, stagej_l2], 3, name='concat_stage{}_L2'.format(j+1))
-      for i in range(5):
-        _0 = slim.conv2d(stagej_l2, 128, [3,3], scope='Mconv{}_stage{}_L2_0'.format(i+1,j+1))
-        _1 = slim.conv2d(_0, 128, [3,3], scope='Mconv{}_stage{}_L2_1'.format(i+1,j+1))
-        _2 = slim.conv2d(_1, 128, [3,3], scope='Mconv{}_stage{}_L2_2'.format(i+1,j+1))
-        stagej_l2 = tf.concat([_0, _1, _2], 3, name='Mconv{}_stage{}_L2_concat'.format(i+1,j+1))
-      stagej_l2 = slim.conv2d(stagej_l2, 512, [1,1], scope='Mconv6_stage{}_L2'.format(j+1))
-      stagej_l2 = slim.conv2d(stagej_l2, num_limbs*2, [1,1], activation_fn=None, scope='Mconv7_stage{}_L2'.format(j+1))
-      end_points['stage{}_L1'.format(j+2)] = stagej_l2
+  for j in range(limb_stage):
+    net = tf.concat([stage0, net], 3, name='concat_stage{}_L2'.format(j+1))
+    net = pose_body_25_stage(net, num_limbs*2, c1=128, c2=512, name='stage{}_L2'.format(j+1))
+    end_points['stage{}_L1'.format(j+2)] = net
+  final_l2 = net
 
-    stage0_l1 = tf.concat([net, stagej_l2], 3, name='concat_stage0_L1')
-    for i in range(5):
-      _0 = slim.conv2d(stage0_l1, 96, [3,3], scope='Mconv{}_stage0_L1_0'.format(i+1))
-      _1 = slim.conv2d(_0, 96, [3,3], scope='Mconv{}_stage0_L1_1'.format(i+1))
-      _2 = slim.conv2d(_1, 96, [3,3], scope='Mconv{}_stage0_L1_2'.format(i+1))
-      stage0_l1 = tf.concat([_0, _1, _2], 3, name='Mconv{}_stage0_L1_concat'.format(i+1))
-    stage0_l1 = slim.conv2d(stage0_l1, 256, [1,1], scope='Mconv6_stage0_L1')
-    stage0_l1 = slim.conv2d(stage0_l1, num_parts, [1,1], activation_fn=None, scope='Mconv7_stage0_L1')
-    end_points['stage1_L2'] = stage0_l1
-      
-    stagej_l1 = stage0_l1
-    for j in range(1):
-      stagej_l1 = tf.concat([net, stagej_l1, stagej_l2], 3, name='concat_stage{}_L1'.format(j+1))
-      for i in range(5):
-        _0 = slim.conv2d(stagej_l1, 128, [3,3], scope='Mconv{}_stage{}_L1_0'.format(i+1,j+1))
-        _1 = slim.conv2d(_0, 128, [3,3], scope='Mconv{}_stage{}_L1_1'.format(i+1,j+1))
-        _2 = slim.conv2d(_1, 128, [3,3], scope='Mconv{}_stage{}_L1_2'.format(i+1,j+1))
-        stagej_l1 = tf.concat([_0, _1, _2], 3, name='Mconv{}_stage{}_L1_concat'.format(i+1,j+1))
-      stagej_l1 = slim.conv2d(stagej_l1, 512, [1,1], scope='Mconv6_stage{}_L1'.format(j+1))
-      stagej_l1 = slim.conv2d(stagej_l1, num_parts, [1,1], activation_fn=None, scope='Mconv7_stage{}_L1'.format(j+1))
-    end_points['stage{}_L2'.format(j+2)] = stagej_l1
+  net = tf.concat([stage0, final_l2], 3, name='concat_stage0_L1')
+  net = pose_body_25_stage(net, num_parts, c1=96, c2=256, name='stage0_L1')
+  end_points['stage1_L2'] = net
+  
+  for j in range(part_stage):
+    net = tf.concat([stage0, net, final_l2], 3, name='concat_stage{}_L1'.format(j+1))
+    net = pose_body_25_stage(net, num_parts, c1=128, c2=512, name='stage{}_L1'.format(j+1))
+    end_points['stage{}_L2'.format(j+2)] = net
   return end_points
 
 def base_net(x, num_parts=71, num_stages=6):
