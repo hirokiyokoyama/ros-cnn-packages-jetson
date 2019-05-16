@@ -12,7 +12,6 @@ from sensor_msgs.msg import Image
 from dynamic_reconfigure.server import Server as ReconfServer
 
 from openpose_ros.msg import Person, PersonArray, KeyPoint
-from openpose_ros.srv import DetectPeople, DetectPeopleResponse
 from openpose_ros.msg import SparseTensor, SparseTensorArray
 from openpose_ros.srv import Compute, ComputeResponse
 from openpose_ros.cfg import KeyPointDetectorConfig

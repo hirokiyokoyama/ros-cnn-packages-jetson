@@ -12,7 +12,6 @@ from sensor_msgs.msg import Image
 from dynamic_reconfigure.server import Server as ReconfServer
 
 from openpose_ros.msg import Person, PersonArray, KeyPoint
-from openpose_ros.srv import DetectPeople, DetectPeopleResponse
 from openpose_ros.msg import SparseTensor, SparseTensorArray
 from openpose_ros.srv import Compute, ComputeResponse
 from openpose_ros.cfg import KeyPointDetectorConfig
@@ -22,16 +21,6 @@ l2_stage = 1
 l1_stage = 4
 limbs = [(POSE_BODY_25_L2.index(p), POSE_BODY_25_L2.index(q)) \
          for p, q in POSE_BODY_25_L1]
-
-#def extract_people(heat_map, affinity):
-#  keypoints = non_maximum_suppression(
-#      np.expand_dims(heat_map[:,:,:-1], 0), threshold=0.15)
-#  persons = connect_parts(affinity, keypoints[:,1:], limbs,
-#                          line_division=15, threshold=0.08)
-#  persons = [ { k: ((keypoints[v][2]+0.5)/heat_map.shape[1],
-#                    (keypoints[v][1]+0.5)/heat_map.shape[0]) \
-#                for k,v in p.items() } for p in persons ]
-#  return persons
 
 def sizeof_sparse_tensor(msg):
   size = 14 #width to max_value
