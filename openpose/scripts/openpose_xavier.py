@@ -17,8 +17,7 @@ from openpose_ros.srv import Compute, ComputeResponse
 from openpose_ros.cfg import KeyPointDetectorConfig
 from nets import connect_parts
 
-l2_stage = 1
-l1_stage = 4
+from labels import POSE_BODY_25_L1, POSE_BODY_25_L2
 limbs = [(POSE_BODY_25_L2.index(p), POSE_BODY_25_L2.index(q)) \
          for p, q in POSE_BODY_25_L1]
 
@@ -32,9 +31,9 @@ def sizeof_sparse_tensor(msg):
 
 def callback(data):
   publish_people = people_pub.get_num_connections() > 0
-  if publish_people
+  if publish_people:
     fetch_list = ['part_affinity_fields', 'key_points']
-    feed_dict = {}
+    feed_dict = {'key_point_threshold': pose_params['key_point_threshold']}
     for st in data.sparse_tensors:
       feed_dict[st.name] = [decode_sparse_tensor(st)]
     t0 = rospy.Time.now()
@@ -43,8 +42,8 @@ def callback(data):
     rospy.loginfo('Mid-stage to stage4: {} sec'.format((t1-t0).to_sec()))
     #people = extract_people(heat_map[0], affinity[0])
     
-    affinity = outputs[1][0]
-    keypoints = outputs[2][:,1:]
+    affinity = outputs[0][0]
+    keypoints = outputs[1][:,1:]
     people = connect_parts(affinity, keypoints, limbs,
                            line_division=pose_params['line_division'],
                            threshold=pose_params['affinity_threshold'])
@@ -104,7 +103,8 @@ if __name__ == '__main__':
   pose_detector.initialize(net_fn, ckpt_file,
                            stage_n_L2, POSE_BODY_25_L2,
                            stage_n_L1, POSE_BODY_25_L1,
-                           input_shape=(300,400))
+                           input_shape=(300,400),
+                           allow_glowth=False)
   pose_params = {}
 
   st_sub = rospy.Subscriber('openpose_mid', SparseTensorArray, callback,

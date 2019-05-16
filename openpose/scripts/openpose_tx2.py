@@ -104,7 +104,8 @@ if __name__ == '__main__':
   pose_detector.initialize(net_fn, ckpt_file,
                            stage_n_L2, POSE_BODY_25_L2,
                            stage_n_L1, POSE_BODY_25_L1,
-                           input_shape=(300,400))
+                           input_shape=(300,400),
+                           allow_glowth=False)
   pose_params = {}
 
   image_sub = rospy.Subscriber('image', Image, callback,

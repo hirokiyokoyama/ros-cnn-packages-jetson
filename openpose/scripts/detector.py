@@ -11,7 +11,7 @@ class KeyPointDetector:
   def initialize(self, net_fn, ckpt_file,
                  parts_tensor, part_names,
                  limbs_tensor=None, limbs=None,
-                 input_shape=None):
+                 input_shape=None, allow_glowth=True):
     self.finalize()
     
     self._part_names = part_names
@@ -53,7 +53,7 @@ class KeyPointDetector:
       
       saver = tf.train.Saver()
     config = tf.ConfigProto()
-    config.gpu_options.allow_growth = True
+    config.gpu_options.allow_growth = allow_growth
     sess = tf.Session(graph=graph, config=config)
     saver.restore(sess, ckpt_file)
     rospy.loginfo('Network was restored from {}.'.format(ckpt_file))
