@@ -11,7 +11,7 @@ class KeyPointDetector:
   def initialize(self, net_fn, ckpt_file,
                  parts_tensor, part_names,
                  limbs_tensor=None, limbs=None,
-                 input_shape=None, allow_glowth=True):
+                 input_shape=None, allow_growth=True):
     self.finalize()
     
     self._part_names = part_names

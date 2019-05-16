@@ -105,7 +105,7 @@ if __name__ == '__main__':
                            stage_n_L2, POSE_BODY_25_L2,
                            stage_n_L1, POSE_BODY_25_L1,
                            input_shape=(300,400),
-                           allow_glowth=False)
+                           allow_growth=False)
   pose_params = {}
 
   image_sub = rospy.Subscriber('image', Image, callback,
