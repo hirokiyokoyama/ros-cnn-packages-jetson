@@ -51,7 +51,7 @@ def callback(data):
     mid_pub.publish(msg)
 
     t2 = rospy.Time.now()
-    rospy.loginfo('Publishing mid-stage msg: {} sec'.format(t2-t1).to_sec())
+    rospy.loginfo('Publishing mid-stage msg: {} sec'.format((t2-t1).to_sec()))
     t1 = t2
 
   if publish_people:
