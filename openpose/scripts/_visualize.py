@@ -12,6 +12,35 @@ from _openpose import encode_sparse_tensor, decode_sparse_tensor
 from nets import non_maximum_suppression, connect_parts
 from labels import POSE_BODY_25_L2, POSE_BODY_25_L1
 
+limb_colors = [
+  (255,0,255),
+  (255,255,0),
+  (255,128,0),
+  (128,255,0),
+  (0,255,128),
+  (0,255,255),
+  (0,128,255),
+  (128,255,0),
+  (255,255,0),
+  (255,128,0),
+  (255,255,128),
+  (0,255,128),
+  (0,255,255),
+  (0,128,255),
+  (128,255,255),
+  (255,128,255),
+  (255,255,128),
+  (128,255,255),
+  (255,128,128),
+  (128,128,255),
+  (0,0,255),
+  (0,0,255),
+  (0,0,255),
+  (255,0,0),
+  (255,0,0),
+  (255,0,0),
+]
+
 bridge = CvBridge()
 image = None
 xavier_people = None
@@ -42,12 +71,10 @@ def draw_people(image, people):
     for k, v in person.items():
       v = (int(v[0]*image.shape[1]), int(v[1]*image.shape[0]))
       person[k] = v
-      cv2.circle(image, v, 3, (0, 0, 255), 1)
-    for p1, p2 in limbs:
+      cv2.circle(image, v, 3, (0, 255, 0), 1)
+    for (p1, p2), color in zip(limbs, limb_colors):
       if p1 in person and p2 in person:
-        cv2.line(image,
-                 person[p1], person[p2],
-                 (0, 255, 0), 2)
+        cv2.line(image, person[p1], person[p2], color, 3)
         
 def draw_peoplemsg(image, people):
   for person in people.people:
@@ -56,12 +83,10 @@ def draw_peoplemsg(image, people):
       k = part.name
       v = (int(part.x*image.shape[1]), int(part.y*image.shape[0]))
       points[k] = v
-      cv2.circle(image, v, 3, (0, 0, 255), 1)
-    for p1, p2 in POSE_BODY_25_L1:
+      cv2.circle(image, v, 3, (0, 255, 0), 1)
+    for (p1, p2), color in zip(POSE_BODY_25_L1, limb_colors):
       if p1 in points and p2 in points:
-        cv2.line(image,
-                 points[p1], points[p2],
-                 (0, 255, 0), 2)
+        cv2.line(image, points[p1], points[p2], color, 3)
 
 def image_cb(image_msg):
     try:
