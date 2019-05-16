@@ -57,7 +57,7 @@ def callback(data):
   if publish_people:
     affinity = sparse_tensor_value_to_array(outputs[1])
     keypoints = outputs[2][:,1:]
-    people = connect_parts(affinity[:,:,limbs_inds], keypoints, limbs[limbs_inds],
+    people = connect_parts(affinity[:,:,affinity_inds], keypoints, limbs,
                            line_division=pose_params['line_division'],
                            threshold=pose_params['affinity_threshold'])
     h, w = affinity.shape[:2]
@@ -141,8 +141,10 @@ if __name__ == '__main__':
     sparse = dense_to_sparse(pose_detector._end_points[name][0])
     pose_detector._end_points[name+'_sparse'] = sparse
     
-  limbs = pose_detector._limbs
-  limbs_inds = [0, 7, 11] #(Neck, MidHip), (Neck, RShoulder), (Neck, LShoulder)
+  #(Neck, MidHip), (Neck, RShoulder), (Neck, LShoulder)
+  limbs_inds = np.array([0, 7, 11])
+  limbs = np.array(pose_detector._limbs)[limbs_inds]
+  affinity_inds = np.stack([limbs_inds*2,limbs_inds*2+1],1).flatten()
 
   image_sub = rospy.Subscriber('image', Image, callback,
                                queue_size=1, buff_size=1048576*8)
