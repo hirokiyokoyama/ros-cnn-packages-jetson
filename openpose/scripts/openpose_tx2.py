@@ -108,7 +108,7 @@ def sparse_tensor_value_to_msg(x):
   msg.y_indices = x.indices[:,0].tolist()
   msg.channel_indices = x.indices[:,2].tolist()
   msg.quantized_values = np.uint8((x.values-min_val)/(max_val-min_val)*255).tolist()
-  return x
+  return msg
 
 def sparse_tensor_value_to_array(x):
   y = np.zeros(x.dense_shape)
