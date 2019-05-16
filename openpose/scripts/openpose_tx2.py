@@ -138,7 +138,7 @@ if __name__ == '__main__':
                            allow_growth=False)
   
   for name in ['stage0', 'part_affinity_fields']:
-    sparse = dense_to_sparse(pose_detector._end_points[name])
+    sparse = dense_to_sparse(pose_detector._end_points[name][0])
     pose_detector._end_points[name+'_sparse'] = sparse
     
   limbs = pose_detector._limbs
