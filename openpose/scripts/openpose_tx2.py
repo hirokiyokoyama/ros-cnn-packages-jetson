@@ -29,7 +29,7 @@ def callback(data):
     rospy.logerr(e)
     return
   
-  fetch_list = ['stage0', 'part_affinity_fields']
+  fetch_list = ['stage0_sparse', 'part_affinity_fields_sparse']
   feed_dict = {'image': [cv_image/255.]}
   if publish_people:
     fetch_list.append('key_points')
@@ -43,17 +43,17 @@ def callback(data):
   if publish_mid:
     msg = SparseTensorArray()
     msg.header = data.header
-    stage0 = encode_sparse_tensor(outputs[0][0], threshold=0.1)
+    stage0 = sparse_tensor_value_to_msg(outputs[0])
     stage0.name = 'stage0'
-    l1 = encode_sparse_tensor(outputs[1][0], threshold=0.1)
+    l1 = sparse_tensor_value_to_msg(outputs[1])
     l1.name = stage_n_L1
     msg.sparse_tensors = [stage0, l1]
     mid_pub.publish(msg)
 
   if publish_people:
-    affinity = outputs[1][0]
+    affinity = sparse_tensor_value_to_array(outputs[1])
     keypoints = outputs[2][:,1:]
-    people = connect_parts(affinity, keypoints, pose_detector._limbs,
+    people = connect_parts(affinity[:,:,limbs_inds], keypoints, limbs[limbs_inds],
                            line_division=pose_params['line_division'],
                            threshold=pose_params['affinity_threshold'])
     h, w = affinity.shape[:2]
@@ -85,6 +85,29 @@ def reconf_callback(config, level):
     pose_params[key] = config[key]
   return config
 
+def dense_to_sparse(x, threshold=0.1):
+  x = tf.where(tf.abs(x)>0.1, x, tf.zeros_like(x))
+  x = tf.contrib.layers.dense_to_sparse(x)
+  return x
+
+def sparse_tensor_value_to_msg(x):
+  msg = SparseTensor()
+  msg.height, msg.width, msg.channels = x.dense_shape.tolist()
+  min_val = x.values.min()
+  max_val = x.values.max()
+  msg.min_value = min_val
+  msg.max_value = max_val
+  msg.x_indices = x.indices[:,1].tolist()
+  msg.y_indices = x.indices[:,0].tolist()
+  msg.channel_indices = x.indices[:,2].tolist()
+  msg.quantized_values = np.uint8((x.values-min_val)/(max_val-min_val)*255).tolist()
+  return x
+
+def sparse_tensor_value_to_array(x):
+  y = np.zeros(x.dense_shape)
+  y[tuple(x.indices.T)] = x.values
+  return y
+
 if __name__ == '__main__':
   import functools
   from nets import pose_net_body_25
@@ -106,6 +129,8 @@ if __name__ == '__main__':
                            stage_n_L1, POSE_BODY_25_L1,
                            input_shape=(300,400),
                            allow_growth=False)
+  limbs = pose_detector._limbs
+  limbs_inds = [0, 7, 11] #(Neck, MidHip), (Neck, RShoulder), (Neck, LShoulder)
   pose_params = {}
 
   image_sub = rospy.Subscriber('image', Image, callback,

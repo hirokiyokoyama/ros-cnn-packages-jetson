@@ -184,8 +184,18 @@ if __name__ == '__main__':
   compute_openpose_xavier = rospy.ServiceProxy('compute_openpose', Compute)
   compute_openpose_xavier.wait_for_service()
 
-  reconf = ReconfClient('openpose_xavier')
-  reconf.update_configuration({'affinity_threshold': 0.1})
+  reconf_xavier = ReconfClient('openpose_xavier')
+  reconf_xavier.update_configuration({
+    'key_point_threshold': 0.1,
+    'affinity_threshold': 0.1,
+    'line_division': 5
+  })
+  reconf_tx2 = ReconfClient('openpose_tx2')
+  reconf_tx2.update_configuration({
+    'key_point_threshold': 0.1,
+    'affinity_threshold': 0.1,
+    'line_division': 2
+  })
 
   #st_sub = rospy.Subscriber('openpose_stage1', SparseTensorArray,
   #                          sp_cb, queue_size=1)

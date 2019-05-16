@@ -12,6 +12,7 @@ from dynamic_reconfigure.client import Client as ReconfClient
 from labels import POSE_BODY_25_L2, POSE_BODY_25_L1
 
 from camera_controller import CameraController
+from _visualize import draw_peoplemsg
 
 def ray_to_pose(p, v):
     pose = Pose()
@@ -28,20 +29,6 @@ def ray_to_pose(p, v):
     q = tf.transformations.quaternion_from_matrix(mat)
     pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w = q
     return pose
-
-def draw_peoplemsg(image, people):
-  for person in people.people:
-    points = {}
-    for part in person.body_parts:
-      k = part.name
-      v = (int(part.x*image.shape[1]), int(part.y*image.shape[0]))
-      points[k] = v
-      cv2.circle(image, v, 3, (0, 0, 255), 1)
-    for p1, p2 in POSE_BODY_25_L1:
-      if p1 in points and p2 in points:
-        cv2.line(image,
-                 points[p1], points[p2],
-                 (0, 255, 0), 2)
 
 def img_cb(image_msg):
   global image
@@ -92,7 +79,7 @@ if __name__ == '__main__':
           continue
         _, neck = cam.from_pixel(parts['Neck'], 'base_link')
         _, hip = cam.from_pixel(parts['MidHip'], 'base_link')
-        detections.append((neck, hip, len(p.body_parts)))
+        detections.append((neck, hip, len(p.body_parts), tx2_people.header.stamp))
 
       if detections:
         if track is None:
@@ -104,9 +91,8 @@ if __name__ == '__main__':
     
     if track is not None:
       ps = PoseStamped()
-      ps.header.stamp = rospy.Time.now()
+      ps.header.stamp = track[3]
       ps.header.frame_id = 'base_link'
-      print (track)
       ps.pose = ray_to_pose(p, track[0])
       pose_pub.publish(ps)
 
@@ -122,9 +108,8 @@ if __name__ == '__main__':
       ps.pose = ray_to_pose(p, camera_target)
       pose2_pub.publish(ps)
 
-      cam.look_at(
-        np.array(p) + camera_target,
-        source_frame='base_link')
+      #cam.look_at(np.array(p) + camera_target,
+      #            source_frame='base_link')
     
     if image is not None:
       xavier_image = image.copy()
@@ -133,6 +118,6 @@ if __name__ == '__main__':
         draw_peoplemsg(xavier_image, xavier_people)
       if tx2_people is not None:
         draw_peoplemsg(tx2_image, tx2_people)
-      cv2.imshow('Xavier', xavier_image)
-      cv2.imshow('TX2', tx2_image)
+      cv2.imshow('Xavier', np.uint8(xavier_image*0.5+image*0.5))
+      cv2.imshow('TX2', np.uint8(tx2_image*0.5+image*0.5))
     cv2.waitKey(1)
