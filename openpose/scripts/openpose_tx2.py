@@ -50,6 +50,10 @@ def callback(data):
     msg.sparse_tensors = [stage0, l1]
     mid_pub.publish(msg)
 
+    t2 = rospy.Time.now()
+    rospy.loginfo('Publishing mid-stage msg: {} sec'.format(t2-t1).to_sec())
+    t1 = t2
+
   if publish_people:
     affinity = sparse_tensor_value_to_array(outputs[1])
     keypoints = outputs[2][:,1:]
@@ -67,6 +71,9 @@ def callback(data):
                   for p in people]
     people_pub.publish(msg)
 
+    t2 = rospy.Time.now()
+    rospy.loginfo('Publishing people msg: {} sec'.format((t2-t1).to_sec()))
+    
 def compute(req):
   feed_dict = { x.name: [decode_sparse_tensor(x)] for x in req.input_tensors }
   outputs = pose_detector.compute(req.queries, feed_dict)
@@ -129,14 +136,20 @@ if __name__ == '__main__':
                            stage_n_L1, POSE_BODY_25_L1,
                            input_shape=(300,400),
                            allow_growth=False)
+  
+  for name in ['stage0', 'part_affinity_fields']:
+    sparse = dense_to_sparse(pose_detector._end_points[name])
+    pose_detector._end_points[name+'_sparse'] = sparse
+    
   limbs = pose_detector._limbs
   limbs_inds = [0, 7, 11] #(Neck, MidHip), (Neck, RShoulder), (Neck, LShoulder)
-  pose_params = {}
 
   image_sub = rospy.Subscriber('image', Image, callback,
                                queue_size=1, buff_size=1048576*8)
   mid_pub = rospy.Publisher('openpose_mid', SparseTensorArray, queue_size=1)
   people_pub = rospy.Publisher('people_tx2', PersonArray, queue_size=1)
 
+  pose_params = {}
   srv = ReconfServer(KeyPointDetectorConfig, reconf_callback)
+
   rospy.spin()
