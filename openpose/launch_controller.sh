@@ -6,7 +6,8 @@ alias ros-container="nvidia-docker run \
 	            -e ROS_HOSTNAME=`hostname`.local \
 	            --net=host"
 xhost +
-ros-container -it --name openpose-tracker --rm -e DISPLAY=$DISPLAY -v /tmp/.X11-unix:/tmp/.X11-unix \
+ros-container -it --name openpose-controller --rm -e DISPLAY=$DISPLAY -v /tmp/.X11-unix:/tmp/.X11-unix \
               -v `pwd`/scripts:/catkin_ws/src/openpose_ros/_scripts \
 	      ros-cnn-packages-jetson-openpose \
-	      rosrun openpose_ros tracker.py
+	      rosrun openpose_ros controller.py \
+	      image:=/camera/color/image_rect_color

@@ -101,8 +101,12 @@ def dense_to_sparse(x, threshold=0.1):
 def sparse_tensor_value_to_msg(x):
   msg = SparseTensor()
   msg.height, msg.width, msg.channels = x.dense_shape.tolist()
-  min_val = x.values.min()
-  max_val = x.values.max()
+  if x.values:
+    min_val = x.values.min()
+    max_val = x.values.max()
+  else:
+    min_val = 0.
+    max_val = 1.
   msg.min_value = min_val
   msg.max_value = max_val
   msg.x_indices = x.indices[:,1].tolist()

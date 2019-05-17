@@ -16,19 +16,12 @@ from openpose_ros.msg import SparseTensor, SparseTensorArray
 from openpose_ros.srv import Compute, ComputeResponse
 from openpose_ros.cfg import KeyPointDetectorConfig
 from nets import connect_parts
+from std_msgs.msg import Duration
 from std_srvs.srv import Empty, EmptyResponse
 
 from labels import POSE_BODY_25_L1, POSE_BODY_25_L2
 limbs = [(POSE_BODY_25_L2.index(p), POSE_BODY_25_L2.index(q)) \
          for p, q in POSE_BODY_25_L1]
-
-def sizeof_sparse_tensor(msg):
-  size = 14 #width to max_value
-  size += len(msg.x_indices)
-  size += len(msg.y_indices)
-  size += len(msg.channel_indices)
-  size += len(msg.quantized_values)
-  return size
 
 def callback(data):
   publish_people = people_pub.get_num_connections() > 0
@@ -52,10 +45,8 @@ def callback(data):
     people = [ { pose_detector._part_names[k]: ((keypoints[v][1]+0.5)/w, (keypoints[v][0]+0.5)/h) \
                  for k,v in person.items() } for person in people ]
     t2 = rospy.Time.now()
-
-    #TODO
-    sizes = list(map(sizeof_sparse_tensor, data.sparse_tensors))
-    print("Sizes: {} bytes\nTotal: {} bytes".format(sizes, sum(sizes)))
+    time_pub.publish(t2-t1)
+    
     rospy.loginfo("Post processing: {} sec".format((t2-t1).to_sec()))
     rospy.loginfo("Total: {} sec".format((t2-t0).to_sec()))
     print("Found {} people.".format(len(people)))
@@ -124,6 +115,8 @@ if __name__ == '__main__':
   people_pub = rospy.Publisher('people_xavier', PersonArray, queue_size=1)
   rospy.Service('compute_openpose', Compute, compute)
   rospy.Service('initialize_network_xavier', Empty, initialize_network)
+
+  time_pub = rospy.Publisher('processing_time_xavier', Duration, queue_size=1)
 
   pose_params = {}
   srv = ReconfServer(KeyPointDetectorConfig, reconf_callback)
