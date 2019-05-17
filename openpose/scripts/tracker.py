@@ -10,6 +10,7 @@ import tf
 import numpy as np
 from dynamic_reconfigure.client import Client as ReconfClient
 from labels import POSE_BODY_25_L2, POSE_BODY_25_L1
+from std_srvs.srv import Empty
 
 from camera_controller import CameraController
 from pykalman import KalmanFilter
@@ -50,20 +51,18 @@ class Track:
   _kf = KalmanFilter()
   
   def __init__(self, t, x):
-    self._mean = np.array(list(x)+[0.]*3)
-    self._cov = np.diag([1.]*3+[2.]*3)
+    self._mean = np.array(list(x)+[0.]*2)
+    self._cov = np.diag([1.]*2+[2.]*2)
     self._t = t
-    self._obs_mat = np.eye(3,6)
-    self._obs_cov = np.eye(3)*.3
+    self._obs_mat = np.eye(2,4)
+    self._obs_cov = np.eye(2) * .2**2
 
   def _transition_matrices(self, dt):
-    trans_mat = np.array([[1., 0., 0., dt, 0., 0.],
-                          [0., 1., 0., 0., dt, 0.],
-                          [0., 0., 1., 0., 0., dt],
-                          [0., 0., 0., 1., 0., 0.],
-                          [0., 0., 0., 0., 1., 0.],
-                          [0., 0., 0., 0., 0., 1.]])
-    trans_cov = np.diag([1.*dt]*3+[2.*dt]*3)
+    trans_mat = np.array([[1., 0., dt, 0.],
+                          [0., 1., 0., dt],
+                          [0., 0., 1., 0.],
+                          [0., 0., 0., 1.]])
+    trans_cov = np.diag([1.**2 * dt]*2+[2.**2 * dt]*2)
     return trans_mat, trans_cov
 
   def predict(self, t):
@@ -78,10 +77,10 @@ class Track:
                                         transition_covariance=t_cov)
     return mean, cov
     
-  def update(self, t, detection):
+  def update(self, t, obs):
     dt = (t - self._t).to_sec()
     t_mat, t_cov = self._transition_matrices(dt)
-    mean, cov = Track._kf.filter_update(self._mean, self._cov, np.array(detection[1]),
+    mean, cov = Track._kf.filter_update(self._mean, self._cov, obs,
                                         transition_matrix=t_mat,
                                         transition_covariance=t_cov,
                                         observation_matrix=self._obs_mat,
@@ -92,22 +91,22 @@ class Track:
 class Tracker:
   def __init__(self):
     self._tracks = []
-        
+    
   def update(self, t, detections):
     if detections:
       if not self._tracks:
-        detection = max(detections, key=lambda d: d[0])
-        self._tracks.append(Track(t, detection[1]))
+        detection = max(detections, key=lambda d: d[0][1])
+        self._tracks.append(Track(t, detection[0]))
       else:
         track = self._tracks[0]
         mean, cov = track.get_prediction(t)
-        detection = max(detections, key=lambda d: np.dot(d[2], mean[:3]))
-        track.update(t, detection)
+        detection = min(detections, key=lambda d: np.linalg.norm(d[0]-mean[:2]))
+        track.update(t, detection[0])
 
     tracks = []
     for track in self._tracks:
       _, cov = track.get_prediction(t)
-      if np.trace(cov[:3,:3])/3. < 8.:
+      if np.trace(cov[:2,:2])/2. < 8.:
         tracks.append(track)
     self._tracks = tracks
     
@@ -152,12 +151,18 @@ if __name__ == '__main__':
     detections = []
     if tx2_people is not None and tx2_people.header.stamp > prev_t:
       for p in tx2_people.people:
-        parts = {x.name: (x.x * 640, x.y * 480) for x in p.body_parts}
-        if 'Neck' not in parts or 'MidHip' not in parts:
+        parts = {x.name: np.array([x.x * 640, x.y * 480]) \
+                 for x in p.body_parts}
+        if 'Neck' in parts and 'MidHip' in parts:
+          center = (parts['Neck'] + parts['MidHip']) / 2.
+        elif 'RShoulder' in parts and 'RElbow' in parts:
+          center = (parts['RShoulder'] + parts['RElbow']) / 2.
+        elif 'LShoulder' in parts and 'LElbow' in parts:
+          center = (parts['LShoulder'] + parts['LElbow']) / 2.
+        else:
           continue
-        _, neck = cam.from_pixel(parts['Neck'], 'base_link')
-        _, hip = cam.from_pixel(parts['MidHip'], 'base_link')
-        detections.append((len(p.body_parts), neck, hip))
+        _, center = cam.from_pixel(center, 'base_link')
+        detections.append((center[1:], parts)) # track on y-z plane
       prev_t = tx2_people.header.stamp
     if detections:
       tracker.update(prev_t, detections)
@@ -173,7 +178,7 @@ if __name__ == '__main__':
       ps.header.stamp = t
       ps.header.frame_id = 'base_link'
       mean, cov = track.get_prediction(t)
-      x = mean[:3]
+      x = np.array([1., mean[0], mean[1]]
       ps.pose = ray_to_pose(p, x)
       pose_pub.publish(ps)
 
@@ -206,5 +211,5 @@ if __name__ == '__main__':
     if key in range(ord('1'), ord('5')):
       stage = key - ord('0')
       rospy.set_param('/openpose_tx2/l1_stage', stage)
-      rospy.ServiceProxy('initalize_network_tx2').call()
+      rospy.ServiceProxy('initialize_network_tx2', Empty).call()
     rate.sleep()

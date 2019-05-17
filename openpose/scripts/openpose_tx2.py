@@ -156,8 +156,10 @@ if __name__ == '__main__':
   pose_detector = KeyPointDetector()
   initialize_network()
     
-  #(Neck, MidHip), (Neck, RShoulder), (Neck, LShoulder)
-  limbs_inds = np.array([0, 7, 11])
+  # (Neck, MidHip), (Neck, RShoulder), (Neck, LShoulder)
+  #limbs_inds = np.array([0, 7, 11])
+  # above and (RShoulder, RElbow), (LShoulder, LElbow)
+  limbs_inds = np.array([0, 7, 11, 8, 12])
   limbs = np.array(pose_detector._limbs)[limbs_inds]
   affinity_inds = np.stack([limbs_inds*2,limbs_inds*2+1],1).flatten()
 
