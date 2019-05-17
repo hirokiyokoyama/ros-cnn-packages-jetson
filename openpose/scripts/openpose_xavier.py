@@ -16,6 +16,7 @@ from openpose_ros.msg import SparseTensor, SparseTensorArray
 from openpose_ros.srv import Compute, ComputeResponse
 from openpose_ros.cfg import KeyPointDetectorConfig
 from nets import connect_parts
+from std_srvs.srv import Empty, EmptyResponse
 
 from labels import POSE_BODY_25_L1, POSE_BODY_25_L2
 limbs = [(POSE_BODY_25_L2.index(p), POSE_BODY_25_L2.index(q)) \
@@ -84,33 +85,47 @@ def reconf_callback(config, level):
     pose_params[key] = config[key]
   return config
 
-if __name__ == '__main__':
-  import functools
-  from nets import pose_net_body_25
-  from labels import POSE_BODY_25_L1, POSE_BODY_25_L2
-
-  pkg = rospkg.rospack.RosPack().get_path('openpose_ros')
-  bridge = CvBridge()
-  rospy.init_node('openpose_xavier')
+def initialize_network(req=None):
+  global stage_n_L1, stage_n_L2
   l1_stage = rospy.get_param('~l1_stage', 4)
   l2_stage = rospy.get_param('~l2_stage', 2)
   stage_n_L1 = 'stage%d_L1' % l1_stage
   stage_n_L2 = 'stage%d_L2' % l2_stage
 
+  image_width = rospy.get_param('openpose_image_width', 360)
+  image_height = rospy.get_param('openpose_image_height', 270)
+  input_shape = (image_height, image_width)
+
+  pkg = rospkg.rospack.RosPack().get_path('openpose_ros')
   ckpt_file = os.path.join(pkg, '_data', 'pose_iter_584000.ckpt')
-  pose_detector = KeyPointDetector()
-  net_fn = functools.partial(pose_net_body_25, part_stage=l2_stage-1, limb_stage=l1_stage-1)
+
+  net_fn = functools.partial(pose_net_body_25,
+                             part_stage=l2_stage-1,
+                             limb_stage=l1_stage-1)
   pose_detector.initialize(net_fn, ckpt_file,
                            stage_n_L2, POSE_BODY_25_L2,
                            stage_n_L1, POSE_BODY_25_L1,
-                           input_shape=(300,400),
+                           input_shape=input_shape,
                            allow_growth=False)
-  pose_params = {}
+  return EmptyResponse()
+  
+if __name__ == '__main__':
+  import functools
+  from nets import pose_net_body_25
+  from labels import POSE_BODY_25_L1, POSE_BODY_25_L2
+
+  bridge = CvBridge()
+  rospy.init_node('openpose_xavier')
+  pose_detector = KeyPointDetector()
+  initialize_network()
 
   st_sub = rospy.Subscriber('openpose_mid', SparseTensorArray, callback,
                             queue_size=1, buff_size=1048576*4, tcp_nodelay=True)
   people_pub = rospy.Publisher('people_xavier', PersonArray, queue_size=1)
   rospy.Service('compute_openpose', Compute, compute)
+  rospy.Service('initialize_network_xavier', Empty, initialize_network)
 
+  pose_params = {}
   srv = ReconfServer(KeyPointDetectorConfig, reconf_callback)
+  
   rospy.spin()

@@ -16,6 +16,7 @@ from openpose_ros.msg import SparseTensor, SparseTensorArray
 from openpose_ros.srv import Compute, ComputeResponse
 from openpose_ros.cfg import KeyPointDetectorConfig
 from nets import connect_parts
+from std_srvs.srv import Empty, EmptyResponse
 
 def callback(data):
   publish_mid = mid_pub.get_num_connections() > 0
@@ -115,31 +116,45 @@ def sparse_tensor_value_to_array(x):
   y[tuple(x.indices.T)] = x.values
   return y
 
-if __name__ == '__main__':
-  import functools
-  from nets import pose_net_body_25
-  from labels import POSE_BODY_25_L1, POSE_BODY_25_L2
-  
-  pkg = rospkg.rospack.RosPack().get_path('openpose_ros')
-  bridge = CvBridge()
-  rospy.init_node('openpose_tx2')
+def initialize_network(req=None):
+  global stage_n_L1, stage_n_L2
   l1_stage = rospy.get_param('~l1_stage', 4)
   l2_stage = rospy.get_param('~l2_stage', 2)
   stage_n_L1 = 'stage%d_L1' % l1_stage
   stage_n_L2 = 'stage%d_L2' % l2_stage
-
+  
+  image_width = rospy.get_param('openpose_image_width', 360)
+  image_height = rospy.get_param('openpose_image_height', 270)
+  input_shape = (image_height, image_width)
+  
+  pkg = rospkg.rospack.RosPack().get_path('openpose_ros')
   ckpt_file = os.path.join(pkg, '_data', 'pose_iter_584000.ckpt')
-  pose_detector = KeyPointDetector()
-  net_fn = functools.partial(pose_net_body_25, part_stage=l2_stage-1, limb_stage=l1_stage-1)
+ 
+  net_fn = functools.partial(pose_net_body_25,
+                             part_stage=l2_stage-1,
+                             limb_stage=l1_stage-1)
   pose_detector.initialize(net_fn, ckpt_file,
                            stage_n_L2, POSE_BODY_25_L2,
                            stage_n_L1, POSE_BODY_25_L1,
-                           input_shape=(300,400),
+                           input_shape=input_shape,
                            allow_growth=False)
   
   for name in ['stage0', 'part_affinity_fields']:
     sparse = dense_to_sparse(pose_detector._end_points[name][0])
     pose_detector._end_points[name+'_sparse'] = sparse
+    
+  return EmptyResponse()
+
+if __name__ == '__main__':
+  import functools
+  from nets import pose_net_body_25
+  from labels import POSE_BODY_25_L1, POSE_BODY_25_L2
+  
+  bridge = CvBridge()
+  rospy.init_node('openpose_tx2')
+
+  pose_detector = KeyPointDetector()
+  initialize_network()
     
   #(Neck, MidHip), (Neck, RShoulder), (Neck, LShoulder)
   limbs_inds = np.array([0, 7, 11])
@@ -150,6 +165,7 @@ if __name__ == '__main__':
                                queue_size=1, buff_size=1048576*8)
   mid_pub = rospy.Publisher('openpose_mid', SparseTensorArray, queue_size=1)
   people_pub = rospy.Publisher('people_tx2', PersonArray, queue_size=1)
+  rospy.Service('initialize_network_tx2', Empty, initialize_network)
 
   pose_params = {}
   srv = ReconfServer(KeyPointDetectorConfig, reconf_callback)

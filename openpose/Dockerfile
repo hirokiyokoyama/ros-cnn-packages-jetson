@@ -20,6 +20,7 @@ RUN tar -zxvf openpose_ros_data.tar.gz && rm -f openpose_ros_data.tar.gz
 
 RUN apt-get update && apt-get install -y ros-melodic-image-geometry \
     && rm -rf /var/lib/apt/lists/*
+RUN pip3 install pykalman
 
 # update source codes (in case the dependency changes, above must be performed)
 RUN cd .. && git pull && git checkout 23d0efb 
