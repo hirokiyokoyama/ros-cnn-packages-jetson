@@ -16,6 +16,7 @@ from openpose_ros.msg import SparseTensor, SparseTensorArray
 from openpose_ros.srv import Compute, ComputeResponse
 from openpose_ros.cfg import KeyPointDetectorConfig
 from nets import connect_parts
+from std_msgs.msg import Duration
 from std_srvs.srv import Empty, EmptyResponse
 
 def callback(data):
@@ -74,6 +75,9 @@ def callback(data):
 
     t2 = rospy.Time.now()
     rospy.loginfo('Publishing people msg: {} sec'.format((t2-t1).to_sec()))
+    t1 = t2
+    
+  time_pub.publish(t1-t0)
     
 def compute(req):
   feed_dict = { x.name: [decode_sparse_tensor(x)] for x in req.input_tensors }
@@ -172,6 +176,8 @@ if __name__ == '__main__':
   mid_pub = rospy.Publisher('openpose_mid', SparseTensorArray, queue_size=1)
   people_pub = rospy.Publisher('people_tx2', PersonArray, queue_size=1)
   rospy.Service('initialize_network_tx2', Empty, initialize_network)
+
+  time_pub = rospy.Publisher('processing_time_tx2', Duration, queue_size=1)
 
   pose_params = {}
   srv = ReconfServer(KeyPointDetectorConfig, reconf_callback)
