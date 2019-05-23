@@ -13,14 +13,20 @@ from geometry_msgs.msg import PoseWithCovarianceStamped
 from camera_controller import CameraController
 
 from _visualize import draw_peoplemsg
+
 def draw_pwcsmsg(img, msg):
   p = msg.pose.pose.position
   u, v = cam.to_pixel([p.x, p.y, p.z], msg.header.frame_id)
   u = u / cam._camera_model.width * img.shape[1]
   v = v / cam._camera_model.height * img.shape[0]
-  p1 = (int(u-10), int(v-10))
-  p2 = (int(u+10), int(v+10))
-  cv2.rectangle(img, p1, p2, (255,128,255), -1)
+  center = (int(u), int(v))
+  C = np.reshape(msg.pose.covariance, (6,6))[1:3,1:3]
+  eigvals, eigvecs = np.linalg.eig(C)
+  _x, _y = eigvecs[0,:]
+  axes = np.sqrt(eigvals) * 20.
+  angle = np.arctan2(_y, _x) / np.pi * 180
+  #axes = (C[0,0] * 10, C[1,1] * 10)
+  cv2.ellipse(img, (center, axes, angle), (128,64,128), -1)
 
 def img_cb(image_msg):
   global image
@@ -119,8 +125,9 @@ def render(screen):
       draw_peoplemsg(tx2_image, tx2_people)
       tx2_image = tx2_image//2 + orig_image//2
     if tracked_person is not None:
-      draw_pwcsmsg(tx2_image, tracked_person)
-      tx2_image = tx2_image//2 + orig_image//2
+      _tx2_image = tx2_image.copy()
+      draw_pwcsmsg(_tx2_image, tracked_person)
+      tx2_image = _tx2_image//2 + tx2_image//2
     put_image(screen, tx2_image, (_x-wi//2, _y))
 
     _x, _y = xavier_end-wb//2, H-50-hi

@@ -9,6 +9,8 @@ from std_srvs.srv import Empty, EmptyResponse
 from camera_controller import CameraController
 from pykalman import KalmanFilter
 
+FIXED_X = 2.
+
 def ray_to_pose(p, v):
   pose = Pose()
   pose.position.x, pose.position.y, pose.position.z = p
@@ -40,7 +42,7 @@ class Track:
                           [0., 1., 0., dt],
                           [0., 0., 1., 0.],
                           [0., 0., 0., 1.]])
-    trans_cov = np.diag([1.**2 * dt]*2+[4.**2 * dt]*2)
+    trans_cov = np.diag([.5**2 * dt]*2+[4.**2 * dt]*2)
     return trans_mat, trans_cov
 
   def predict(self, t):
@@ -55,14 +57,16 @@ class Track:
                                         transition_covariance=t_cov)
     return mean, cov
     
-  def update(self, t, obs):
+  def update(self, t, obs, obs_cov=None):
     dt = (t - self._t).to_sec()
     t_mat, t_cov = self._transition_matrices(dt)
+    if obs_cov is None:
+      obs_cov = self._obs_cov
     mean, cov = Track._kf.filter_update(self._mean, self._cov, obs,
                                         transition_matrix=t_mat,
                                         transition_covariance=t_cov,
                                         observation_matrix=self._obs_mat,
-                                        observation_covariance=self._obs_cov)
+                                        observation_covariance=obs_cov)
     self._mean, self._cov = mean, cov
     self._t = t
 
@@ -71,7 +75,7 @@ class Track:
     mean, cov = self.get_prediction(t)
     msg.header.stamp = t
     msg.header.frame_id = 'base_link'
-    msg.pose.pose.position.x = 1.
+    msg.pose.pose.position.x = FIXED_X
     msg.pose.pose.position.y = mean[0]
     msg.pose.pose.position.z = mean[1]
     msg.pose.pose.orientation.w = 1.
@@ -96,12 +100,12 @@ class Tracker:
         track = self._tracks[0]
         mean, cov = track.get_prediction(t)
         detection = min(detections, key=lambda d: np.linalg.norm(d[0]-mean[:2]))
-        track.update(t, detection[0])
+        track.update(t, detection[0], detection[1])
 
     tracks = []
     for track in self._tracks:
       _, cov = track.get_prediction(t)
-      if np.trace(cov[:2,:2])/2. < 8.:
+      if np.trace(cov[:2,:2])/2. < 4.**2:
         tracks.append(track)
     self._tracks = tracks
     
@@ -145,14 +149,18 @@ if __name__ == '__main__':
                  for x in p.body_parts}
         if 'Neck' in parts and 'MidHip' in parts:
           center = (parts['Neck'] + parts['MidHip']) / 2.
+          cov = np.diag([0.2**2, 0.5**2])
         elif 'RShoulder' in parts and 'RElbow' in parts:
           center = (parts['RShoulder'] + parts['RElbow']) / 2.
+          cov = np.diag([0.6**2, 0.2**2])
         elif 'LShoulder' in parts and 'LElbow' in parts:
           center = (parts['LShoulder'] + parts['LElbow']) / 2.
+          cov = np.diag([0.6**2, 0.2**2])
         else:
           continue
         _, center = cam.from_pixel(center, 'base_link')
-        detections.append((center[1:], parts)) # track on y-z plane
+        center = center / center[0] * FIXED_X       # assume x=FIXED_X and
+        detections.append((center[1:], cov, parts)) # track on y-z plane
       prev_t = people_msg.header.stamp
     if detections:
       tracker.update(prev_t, detections)
@@ -168,7 +176,7 @@ if __name__ == '__main__':
       #ps.header.stamp = t
       #ps.header.frame_id = 'base_link'
       mean, cov = track.get_prediction(t)
-      x = np.array([1., mean[0], mean[1]])
+      x = np.array([FIXED_X, mean[0], mean[1]])
       #ps.pose = ray_to_pose(p, x)
       #pose_pub.publish(ps)
       pose_pub.publish(track.to_msg(t))
@@ -184,6 +192,13 @@ if __name__ == '__main__':
       if camera_target is not None:
         camera_target[1] = camera_target[1] * 0.8
         camera_target[2] = camera_target[1] * 0.8
+        
+      # and publish empty PoseWithCovarianceStamped message
+      msg = PoseWithCovarianceStamped()
+      msg.header.stamp = rospy.Time.now()
+      msg.header.frame_id = 'base_link'
+      msg.pose.pose.orientation.w = 1.
+      pose_pub.publish(msg)
 
     if camera_target is not None:
       ps = PoseStamped()
