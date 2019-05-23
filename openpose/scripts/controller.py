@@ -256,3 +256,5 @@ if __name__ == '__main__':
         rospy.ServiceProxy('enable_camera_movement', Empty).call()
       else:
         rospy.ServiceProxy('disable_camera_movement', Empty).call()
+    if key == ord('s'):
+      cv2.imwrite('/data/screen.png', screen)

@@ -8,6 +8,7 @@ alias ros-container="nvidia-docker run \
 xhost +
 ros-container -it --name openpose-controller --rm -e DISPLAY=$DISPLAY -v /tmp/.X11-unix:/tmp/.X11-unix \
               -v `pwd`/scripts:/catkin_ws/src/openpose_ros/_scripts \
+	      -v `pwd`/data:/data \
 	      ros-cnn-packages-jetson-openpose \
 	      rosrun openpose_ros controller.py \
 	      image:=/camera/color/image_rect_color
