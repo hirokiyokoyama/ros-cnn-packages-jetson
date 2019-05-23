@@ -97,7 +97,7 @@ def initialize_network(req=None):
                            stage_n_L2, POSE_BODY_25_L2,
                            stage_n_L1, POSE_BODY_25_L1,
                            input_shape=input_shape,
-                           allow_growth=False)
+                           allow_growth=True)
   return EmptyResponse()
   
 if __name__ == '__main__':

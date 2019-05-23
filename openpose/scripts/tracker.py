@@ -2,7 +2,7 @@
 
 import rospy
 from openpose_ros.msg import PersonArray, Person
-from geometry_msgs.msg import Pose, PoseStamped
+from geometry_msgs.msg import Pose, PoseStamped, PoseWithCovarianceStamped
 import tf
 import numpy as np
 from std_srvs.srv import Empty, EmptyResponse
@@ -66,6 +66,23 @@ class Track:
     self._mean, self._cov = mean, cov
     self._t = t
 
+  def to_msg(self, t):
+    msg = PoseWithCovarianceStamped()
+    mean, cov = self.get_prediction(t)
+    msg.header.stamp = t
+    msg.header.frame_id = 'base_link'
+    msg.pose.pose.position.x = 1.
+    msg.pose.pose.position.y = mean[0]
+    msg.pose.pose.position.z = mean[1]
+    msg.pose.pose.orientation.w = 1.
+    msg.pose.covariance = [.1,        0,        0, 0, 0, 0,
+                            0, cov[0,0], cov[0,1], 0, 0, 0,
+                            0, cov[1,0], cov[1,1], 0, 0, 0,
+                            0,        0,        0, 1, 0, 0,
+                            0,        0,        0, 0, 1, 0,
+                            0,        0,        0, 0, 0, 1]
+    return msg
+
 class Tracker:
   def __init__(self):
     self._tracks = []
@@ -97,7 +114,7 @@ if __name__ == '__main__':
   move_camera = False
   people_msg = None
   
-  pose_pub = rospy.Publisher('person', PoseStamped, queue_size=1)
+  pose_pub = rospy.Publisher('person', PoseWithCovarianceStamped, queue_size=1)
   pose2_pub = rospy.Publisher('camera_target', PoseStamped, queue_size=1)
 
   def _cb(msg):
@@ -147,13 +164,14 @@ if __name__ == '__main__':
     if tracker._tracks:
       track = tracker._tracks[0]
       t = rospy.Time.now()
-      ps = PoseStamped()
-      ps.header.stamp = t
-      ps.header.frame_id = 'base_link'
+      #ps = PoseStamped()
+      #ps.header.stamp = t
+      #ps.header.frame_id = 'base_link'
       mean, cov = track.get_prediction(t)
       x = np.array([1., mean[0], mean[1]])
-      ps.pose = ray_to_pose(p, x)
-      pose_pub.publish(ps)
+      #ps.pose = ray_to_pose(p, x)
+      #pose_pub.publish(ps)
+      pose_pub.publish(track.to_msg(t))
 
       if camera_target is None:
         camera_target = x

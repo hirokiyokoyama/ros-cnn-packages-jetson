@@ -11,7 +11,7 @@ RUN . /catkin_ws/devel/setup.sh && apt-get update && rosdep update \
 RUN apt-get update && apt-get install -y \
     gfortran liblapack-dev \
     && rm -rf /var/lib/apt/lists/*
-RUN pip3 install scipy
+RUN pip3 install --upgrade pip && pip3 install scipy
 
 # download data
 WORKDIR /catkin_ws/src/openpose_ros/data
