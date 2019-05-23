@@ -100,7 +100,9 @@ class Tracker:
         track = self._tracks[0]
         mean, cov = track.get_prediction(t)
         detection = min(detections, key=lambda d: np.linalg.norm(d[0]-mean[:2]))
-        track.update(t, detection[0], detection[1])
+        v = detection[0] - mean[:2]
+        v = np.outer(v, v)
+        track.update(t, detection[0], detection[1] + v * 10)
 
     tracks = []
     for track in self._tracks:
@@ -149,13 +151,13 @@ if __name__ == '__main__':
                  for x in p.body_parts}
         if 'Neck' in parts and 'MidHip' in parts:
           center = (parts['Neck'] + parts['MidHip']) / 2.
-          cov = np.diag([0.2**2, 0.5**2])
+          cov = np.diag([0.5**2, 1.**2])
         elif 'RShoulder' in parts and 'RElbow' in parts:
           center = (parts['RShoulder'] + parts['RElbow']) / 2.
-          cov = np.diag([0.6**2, 0.2**2])
+          cov = np.diag([1.**2, 0.5**2])
         elif 'LShoulder' in parts and 'LElbow' in parts:
           center = (parts['LShoulder'] + parts['LElbow']) / 2.
-          cov = np.diag([0.6**2, 0.2**2])
+          cov = np.diag([1.**2, 0.5**2])
         else:
           continue
         _, center = cam.from_pixel(center, 'base_link')
