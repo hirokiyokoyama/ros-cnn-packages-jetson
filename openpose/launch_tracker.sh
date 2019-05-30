@@ -8,4 +8,5 @@ alias ros-container="nvidia-docker run \
 ros-container -it --name openpose-tracker --rm \
               -v `pwd`/scripts:/catkin_ws/src/openpose_ros/_scripts \
 	      ros-cnn-packages-jetson-openpose \
-	      rosrun openpose_ros tracker.py
+	      rosrun openpose_ros tracker.py \
+	      camera_info:=/camera/camera_info

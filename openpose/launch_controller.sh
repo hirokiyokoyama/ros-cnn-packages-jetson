@@ -11,4 +11,4 @@ ros-container -it --name openpose-controller --rm -e DISPLAY=$DISPLAY -v /tmp/.X
 	      -v `pwd`/data:/data \
 	      ros-cnn-packages-jetson-openpose \
 	      rosrun openpose_ros controller.py \
-	      image:=/camera/color/image_rect_color
+	      image:=/camera/image_rect_color camera_info:=/camera/camera_info

@@ -12,4 +12,4 @@ ros-container -it --name openpose-openpose --rm \
 	      ros-cnn-packages-jetson-openpose \
               rosrun openpose_ros openpose_tx2.py \
 	      _l2_stage:=1 _l1_stage:=1 \
-	      image:=/camera/color/image_rect_color
+	      image:=/camera/image_rect_color

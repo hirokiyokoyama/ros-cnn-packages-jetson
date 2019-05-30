@@ -22,7 +22,7 @@ class CameraController:
             self._tf_buffer = tf_buffer
 
         self._camera_model = image_geometry.PinholeCameraModel()
-        camera_info = rospy.wait_for_message('/camera/color/camera_info', CameraInfo)
+        camera_info = rospy.wait_for_message('camera_info', CameraInfo)
         self._camera_model.fromCameraInfo(camera_info)
         self._pan_pub = rospy.Publisher(
             '/pan_controller/command', Float64, queue_size=1)

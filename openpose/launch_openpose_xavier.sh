@@ -11,4 +11,4 @@ ros-container -it --name openpose-openpose --rm \
               -v `pwd`/data:/catkin_ws/src/openpose_ros/_data \
 	      ros-cnn-packages-jetson-openpose \
               rosrun openpose_ros openpose_xavier.py \
-	      image:=/camera/color/image_rect_color
+	      image:=/camera/image_rect_color
