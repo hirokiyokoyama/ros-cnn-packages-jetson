@@ -16,8 +16,9 @@ PAN_MAX = 2.5
 class CameraController:
     def __init__(self, tf_buffer=None):
         if tf_buffer is None:
-            self._tf_buffer = tf2_ros.Buffer(rospy.Duration(15.))
+            self._tf_buffer = tf2_ros.Buffer()
             tf2_ros.TransformListener(self._tf_buffer)
+            rospy.sleep(1.)
         else:
             self._tf_buffer = tf_buffer
 
