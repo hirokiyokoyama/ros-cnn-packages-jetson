@@ -16,7 +16,10 @@ from _visualize import draw_peoplemsg
 
 def draw_pwcsmsg(img, msg):
   p = msg.pose.pose.position
-  u, v = cam.to_pixel([p.x, p.y, p.z], msg.header.frame_id)
+  try:
+    u, v = cam.to_pixel([p.x, p.y, p.z], msg.header.frame_id)
+  except:
+    return
   u = u / cam._camera_model.width * img.shape[1]
   v = v / cam._camera_model.height * img.shape[0]
   center = (int(u), int(v))
