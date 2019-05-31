@@ -169,7 +169,7 @@ if __name__ == '__main__':
     else:
       tracker.update(rospy.Time.now(), [])
 
-    p, _ = cam.from_pixel((0, 0), 'base_link')
+    p, camera_now = cam.from_pixel((0, 0), 'base_link')
     
     if tracker._tracks:
       track = tracker._tracks[0]
@@ -210,7 +210,21 @@ if __name__ == '__main__':
       pose2_pub.publish(ps)
 
       if move_camera:
-        cam.look_at(np.array(p) + camera_target,
-                    source_frame='base_link')
+        _camera_target = np.array([0., 0.])
+        if tracker._tracks:
+          track = tracker._tracks[0]
+          t = rospy.Time.now()
+          #ps = PoseStamped()
+          #ps.header.stamp = t
+          #ps.header.frame_id = 'base_link'
+          mean, cov = track.get_prediction(t)
+          _camera_target = np.array([max(-1.5, min(+1.5, mean[0])),
+                                     max(-0.5, min(+0.5, mean[1]))])
+        # pan: left, tilt: up
+        pan = (_camera_target[0] - camera_now[1]) * .5
+        tilt = (_camera_target[1] - camera_now[2]) * .3
+        cam.command(pan, tilt)
+        #cam.look_at(np.array(p) + camera_target,
+        #            source_frame='base_link')
         
     rate.sleep()

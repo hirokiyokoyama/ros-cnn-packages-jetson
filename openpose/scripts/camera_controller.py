@@ -18,7 +18,6 @@ class CameraController:
         if tf_buffer is None:
             self._tf_buffer = tf2_ros.Buffer()
             tf2_ros.TransformListener(self._tf_buffer)
-            rospy.sleep(1.)
         else:
             self._tf_buffer = tf_buffer
 
@@ -96,3 +95,7 @@ class CameraController:
                 pan -= np.pi*2
             pan = min(PAN_MAX, max(PAN_MIN, pan))
             self._pan_pub.publish(Float64(pan))
+
+    def command(self, pan, tilt):
+        self._pan_pub.publish(Float64(pan))
+        self._tilt_pub.publish(Float64(tilt))
