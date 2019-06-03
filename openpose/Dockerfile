@@ -20,7 +20,6 @@ RUN tar -zxvf openpose_ros_data.tar.gz && rm -f openpose_ros_data.tar.gz
 
 RUN apt-get update && apt-get install -y \
     ros-melodic-image-geometry \
-    ros-melodic-dynamixel-controllers \
     && rm -rf /var/lib/apt/lists/*
 RUN pip3 install pykalman
 
