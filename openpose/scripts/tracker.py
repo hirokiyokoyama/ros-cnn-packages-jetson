@@ -141,7 +141,7 @@ if __name__ == '__main__':
     return EmptyResponse()
   rospy.Service('disable_camera_movement', Empty, _stop)
 
-  rate = rospy.Rate(10)
+  rate = rospy.Rate(100)
   prev_t = rospy.Time.now()
   while not rospy.is_shutdown():
     detections = []
@@ -192,7 +192,7 @@ if __name__ == '__main__':
       if camera_target is None:
         camera_target = x
       else:
-        camera_target[1] = camera_target[1]*0.8 + x[1]*0.2
+        camera_target[1] = camera_target[1]*0.9 + x[1]*0.1
         # sometimes tilt controller gives wrong value, so smooth z value
         camera_target[2] = camera_target[2]*0.95 + x[2]*0.05
 
@@ -222,7 +222,6 @@ if __name__ == '__main__':
 
       pan = (camera_target_vel[0] - camera_now[1]) * .5
       tilt = (camera_target_vel[1] - camera_now[2]) * .3
-      print ('pan={}, tilt={}'.format(pan, tilt))
       if move_camera:
         # pan: left, tilt: up
         #cam.command(pan, tilt)

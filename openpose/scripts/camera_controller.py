@@ -48,7 +48,7 @@ class CameraController:
             ps, 'base_link', rospy.Duration(1.)).point
         rospy.loginfo('p={}'.format(p))
         pan = np.arctan2(p.y, p.x)
-        tilt = np.arctan2(p.z-.1, p.x)
+        tilt = np.arctan2(-(p.z-.1), p.x)
         rospy.loginfo('pan={}, tilt={}'.format(pan, tilt))
         self.move(pan=pan, tilt=tilt)
 
