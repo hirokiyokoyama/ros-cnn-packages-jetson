@@ -7,6 +7,7 @@ import tf2_ros
 import tf2_geometry_msgs
 from std_msgs.msg import Float64
 import image_geometry
+from dynamixel_controllers.srv import SetSpeed
 
 TILT_MIN = -0.3
 TILT_MAX = 0.3
@@ -28,6 +29,10 @@ class CameraController:
             '/pan_controller/command', Float64, queue_size=1)
         self._tilt_pub = rospy.Publisher(
             '/tilt_controller/command', Float64, queue_size=1)
+        self.set_pan_speed =rospy.ServiceProxy('/pan_controller/set_speed', SetSpeed)
+        self.set_tilt_speed =rospy.ServiceProxy('/tilt_controller/set_speed', SetSpeed)
+        self.set_pan_speed.wait_for_service()
+        self.set_tilt_speed.wait_for_service()
 
     def look_at(self, xyz,
                 source_frame='map',

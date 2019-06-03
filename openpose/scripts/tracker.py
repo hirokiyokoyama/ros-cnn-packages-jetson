@@ -160,7 +160,10 @@ if __name__ == '__main__':
           cov = np.diag([1.**2, 0.5**2])
         else:
           continue
-        _, center = cam.from_pixel(center, 'base_link')
+        try:
+          _, center = cam.from_pixel(center, 'base_link')
+        except:
+          continue
         center = center / center[0] * FIXED_X       # assume x=FIXED_X and
         detections.append((center[1:], cov, parts)) # track on y-z plane
       prev_t = people_msg.header.stamp
@@ -169,8 +172,11 @@ if __name__ == '__main__':
     else:
       tracker.update(rospy.Time.now(), [])
 
-    p, camera_now = cam.from_pixel((0, 0), 'base_link')
-    
+    try:
+      p, camera_now = cam.from_pixel((0, 0), 'base_link')
+    except:
+      continue
+      
     if tracker._tracks:
       track = tracker._tracks[0]
       t = rospy.Time.now()
@@ -189,11 +195,14 @@ if __name__ == '__main__':
         camera_target[1] = camera_target[1]*0.8 + x[1]*0.2
         # sometimes tilt controller gives wrong value, so smooth z value
         camera_target[2] = camera_target[2]*0.95 + x[2]*0.05
+
+      camera_target_vel = np.array([max(-1.5, min(+1.5, mean[0])),
+                                    max(-0.5, min(+0.5, mean[1]))])
     else:
       # if there is no target, camera moves to the initial pose
       if camera_target is not None:
         camera_target[1] = camera_target[1] * 0.8
-        camera_target[2] = camera_target[1] * 0.8
+        camera_target[2] = camera_target[2] * 0.8
         
       # and publish empty PoseWithCovarianceStamped message
       msg = PoseWithCovarianceStamped()
@@ -202,6 +211,8 @@ if __name__ == '__main__':
       msg.pose.pose.orientation.w = 1.
       pose_pub.publish(msg)
 
+      camera_target_vel = np.array([0., 0.])
+
     if camera_target is not None:
       ps = PoseStamped()
       ps.header.stamp = rospy.Time.now()
@@ -209,22 +220,19 @@ if __name__ == '__main__':
       ps.pose = ray_to_pose(p, camera_target)
       pose2_pub.publish(ps)
 
+      pan = (camera_target_vel[0] - camera_now[1]) * .5
+      tilt = (camera_target_vel[1] - camera_now[2]) * .3
+      print ('pan={}, tilt={}'.format(pan, tilt))
       if move_camera:
-        _camera_target = np.array([0., 0.])
-        if tracker._tracks:
-          track = tracker._tracks[0]
-          t = rospy.Time.now()
-          #ps = PoseStamped()
-          #ps.header.stamp = t
-          #ps.header.frame_id = 'base_link'
-          mean, cov = track.get_prediction(t)
-          _camera_target = np.array([max(-1.5, min(+1.5, mean[0])),
-                                     max(-0.5, min(+0.5, mean[1]))])
         # pan: left, tilt: up
-        pan = (_camera_target[0] - camera_now[1]) * .5
-        tilt = (_camera_target[1] - camera_now[2]) * .3
-        cam.command(pan, tilt)
-        #cam.look_at(np.array(p) + camera_target,
-        #            source_frame='base_link')
+        #cam.command(pan, tilt)
+        pan_speed = abs(camera_target[1] - camera_now[1]) * 10.
+        pan_speed = max(0.5, min(5., pan_speed))
+        tilt_speed = abs(camera_target[2] - camera_now[2]) * 5.
+        tilt_speed = max(0.5, min(2., tilt_speed))
+        cam.set_pan_speed(pan_speed)
+        cam.set_tilt_speed(tilt_speed)
+        cam.look_at(np.array(p) + camera_target,
+                    source_frame='base_link')
         
     rate.sleep()

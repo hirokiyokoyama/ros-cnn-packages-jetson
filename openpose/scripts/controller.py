@@ -37,6 +37,7 @@ def img_cb(image_msg):
     
 def people_cb1(msg):
   global xavier_people
+  print ('Received people from xavier')
   xavier_people = msg
     
 def people_cb2(msg):
