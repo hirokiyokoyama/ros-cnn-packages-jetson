@@ -198,12 +198,12 @@ if __name__ == '__main__':
     reconf_xavier = ReconfClient('openpose_xavier', timeout=5.)
     reconf_tx2.update_configuration({
       'key_point_threshold': 0.3,
-      'affinity_threshold': 0.1,
+      'affinity_threshold': 0.3,
       'line_division': 3
     })
     reconf_xavier.update_configuration({
       'key_point_threshold': 0.2,
-      'affinity_threshold': 0.1,
+      'affinity_threshold': 0.3,
       'line_division': 5
     })
   except:
