@@ -107,7 +107,7 @@ class Tracker:
     tracks = []
     for track in self._tracks:
       _, cov = track.get_prediction(t)
-      if np.trace(cov[:2,:2])/2. < 4.**2:
+      if np.trace(cov[:2,:2])/2. < 6.**2:
         tracks.append(track)
     self._tracks = tracks
     
@@ -145,18 +145,23 @@ if __name__ == '__main__':
   prev_t = rospy.Time.now()
   while not rospy.is_shutdown():
     detections = []
+    hand = None
     if people_msg is not None and people_msg.header.stamp > prev_t:
       for p in people_msg.people:
         parts = {x.name: np.array([x.x * 640, x.y * 480]) \
                  for x in p.body_parts}
-        if 'Neck' in parts and 'MidHip' in parts:
+        dist = lambda p, q: np.linalg.norm(p-q)
+        if 'Neck' in parts and 'MidHip' in parts \
+                and dist(parts['Neck'], parts['MidHip']) > 80:
           center = (parts['Neck'] + parts['MidHip']) / 2.
           cov = np.diag([0.5**2, 1.**2])
-        elif 'RShoulder' in parts and 'RElbow' in parts:
-          center = (parts['RShoulder'] + parts['RElbow']) / 2.
+        elif 'RShoulder' in parts and 'RElbow' in parts \
+                and dist(parts['RShoulder'], parts['RElbow']) > 40:
+          center = parts['RShoulder']
           cov = np.diag([1.**2, 0.5**2])
-        elif 'LShoulder' in parts and 'LElbow' in parts:
-          center = (parts['LShoulder'] + parts['LElbow']) / 2.
+        elif 'LShoulder' in parts and 'LElbow' in parts \
+                and dist(parts['LShoulder'], parts['LElbow']) > 40:
+          center = parts['LShoulder']
           cov = np.diag([1.**2, 0.5**2])
         else:
           continue
@@ -166,8 +171,18 @@ if __name__ == '__main__':
           continue
         center = center / center[0] * FIXED_X       # assume x=FIXED_X and
         detections.append((center[1:], cov, parts)) # track on y-z plane
+
+        if 'RShoulder' in parts and 'RElbow' in parts:
+          shoulder = parts['RShoulder']
+          elbow = parts['RElbow']
+          d = elbow - shoulder
+          th = np.arctan2(d[1], d[0])
+          if th < -np.pi/4:
+              hand = detections[-1]
       prev_t = people_msg.header.stamp
-    if detections:
+    if hand:
+      tracker._tracks = [Track(prev_t, hand[0])]
+    elif detections:
       tracker.update(prev_t, detections)
     else:
       tracker.update(rospy.Time.now(), [])
