@@ -6,7 +6,6 @@ alias ros-container="nvidia-docker run \
 	            --net=host"
 
 ros-container -it --name openpose-openpose --rm \
-              -v `pwd`/data:/catkin_ws/src/openpose_ros/_data \
-	      ros-cnn-packages-jetson-openpose \
+	      ros-cnn-packages-jetson-openpose-fp16 \
               rosrun openpose_ros openpose_fp16.py \
 	      image:=/camera/image_rect_color

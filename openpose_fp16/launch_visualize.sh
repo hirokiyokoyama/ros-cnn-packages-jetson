@@ -6,5 +6,5 @@ alias ros-container="nvidia-docker run \
 	            --net=host"
 xhost +
 ros-container -it --name openpose-visualize --rm -e DISPLAY=$DISPLAY -v /tmp/.X11-unix:/tmp/.X11-unix \
-	      ros-cnn-packages-jetson-openpose \
+	      ros-cnn-packages-jetson-openpose-fp16 \
 	      rosrun openpose_ros visualize.py image:=/camera/image_rect_color
